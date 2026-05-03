@@ -26,7 +26,7 @@ bird reads as one continuous gesture, like signing your name.
 1. **One continuous stroke** — the bird is a single drawn line; no fills
    except the eye dot
 2. **Scalable** — reads clearly from 18px menu bar to 1024px app icon
-3. **Template-ready** — single-color (white, or accent) silhouette adapts
+3. **Template-ready** — single-color (white, or accent) mark adapts
    to any background via macOS template rendering
 4. **Timeless** — no trendy gradients, no 3D effects, no sharp corners
    beyond the beak
@@ -34,7 +34,7 @@ bird reads as one continuous gesture, like signing your name.
 ## Canonical Asset
 
 The brand mark ships as a high-resolution white-on-near-black PNG. The PNG
-remains the runtime source of truth; vector siblings live in
+remains the runtime source of truth; the vector source lives in
 `brand-assets/marks/` for design work that raster can't do (infinite scaling,
 recoloring, poster-scale composition).
 
@@ -147,7 +147,7 @@ color the brand mark wears when it appears inline.
 For **promotional and editorial work** (posters, social campaigns, launch
 art, anniversary tributes), an extended Pop palette anchored on the same
 coral lives in `brand-assets/palette/`. Twelve curated colors, each chosen
-to read against ink and paper and to pair with coral. The Pop palette is
+to read against ink and paper and to sit beside coral. The Pop palette is
 **only** for moments — it must not leak into chrome. See
 `brand-assets/README.md` for guidance.
 

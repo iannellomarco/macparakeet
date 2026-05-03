@@ -16,7 +16,7 @@ betraying it. Two principles govern every artifact in here:
 
 1. **Quiet by default, loud only when chosen.** The brand resting state is
    coral on cream with the line mark — calm, confident, minimal. The Pop
-   palette and silhouette mark are reserved for **moments**: launches,
+   palette and poster compositions are reserved for **moments**: launches,
    anniversaries, social campaigns, posters. Don't dress the chrome in pop.
 2. **Pop with discipline.** Andy Warhol's color is loud, but Warhol's
    *composition* is rigorous — flat color fields, repeated form, rhythm. Our
@@ -84,7 +84,8 @@ are derived presentations of the same data.
 
 **Coral (#E86B3B)** mirrors `DesignSystem.Colors.accent` in-app. Every other
 palette color is chosen to read cleanly against ink, against paper, and beside
-coral. **Aqua** is coral's complement and the strongest Pop partner.
+coral. **Aqua** is coral's complement for side-by-side Pop work; don't overlay
+coral and aqua as a figure/ground pair because their luminances are too close.
 
 Use the palette for:
 - Posters and tile compositions (any color may be ground or figure)

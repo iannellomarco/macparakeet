@@ -1,7 +1,7 @@
 {
   "name": "MacParakeet Pop Palette",
   "version": "1.0.0",
-  "philosophy": "12 colors anchored on the coral-orange brand accent. Pop in spirit (Warhol, MoMA print culture), restrained in execution (calm, confident, minimal). Every color reads cleanly against both the Ink anchor and the Paper anchor; every color pairs with the Coral brand accent; every color tiles next to every other color in a grid.",
+  "philosophy": "12 colors anchored on the coral-orange brand accent. Pop in spirit (Warhol, MoMA print culture), restrained in execution (calm, confident, minimal). Every color reads cleanly against both the Ink anchor and the Paper anchor; every color can sit beside the Coral brand accent; every color tiles next to every other color in a grid.",
   "anchors": {
     "ink": {
       "hex": "#0E0F12",
@@ -78,7 +78,7 @@
     }
   ],
   "guidance": {
-    "tile-pairs": "For Warhol-style tiles, choose a 'ground' (background) and a 'figure' (parakeet). Either may be any palette color, but the pairing must be legible — aim for at least 3:1 luminance contrast between figure and ground. Coral and aqua are chromatic complements but their luminances are too close to read together; pair each with ink or paper instead. Pairs that survived contrast-testing in compositions/warhol-3x4.svg: coral+paper, aqua+ink, marigold+ink, magenta+lemon, cobalt+paper, forest+lemon, lemon+ink, lavender+marigold, brick+paper, ink+marigold, lime+magenta, paper+ink.",
+    "tile-pairs": "For Warhol-style tiles, choose a 'ground' (background) and a 'figure' (parakeet). Either may be any palette color, but the pairing must be legible — use at least 3:1 luminance contrast between figure and ground. Coral and aqua are chromatic complements but their luminances are too close to read together; pair each with ink or paper instead. Pairs used in compositions/warhol-3x4.svg, all contrast-tested at 3:1 or stronger: coral+ink, aqua+ink, marigold+ink, magenta+paper, cobalt+paper, forest+lemon, lemon+ink, lavender+ink, brick+paper, ink+marigold, lime+cobalt, paper+ink.",
     "restraint": "A 12-tile grid does NOT require 12 different colors. A 12-tile grid using 4 colors arranged in a rhythm reads more 'considered' than 12 unique tiles. Pop with discipline.",
     "brand-fidelity": "If a composition is brand-anchored (website hero, product page, app store), make sure coral or ink-on-paper appears prominently. Pop variants are for moments — anniversaries, launches, social campaigns — not for chrome.",
     "do-not": "Do not introduce gradients, drop shadows, glows, or 'glassmorphism' on top of these colors. Pop = flat color fields. The bird and the ground are the only two layers."
