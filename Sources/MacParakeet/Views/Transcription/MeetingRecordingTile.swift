@@ -24,7 +24,13 @@ struct MeetingRecordingTile: View {
         .frame(height: 96)
         .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.dropZoneCornerRadius))
         .onHover { isHovered = $0 }
-        .onTapGesture(perform: onTap)
+        .onTapGesture {
+            // Only fire onTap in states the tile signals as interactive
+            // (idle/recording). Transcribing/completing/completed/error stay
+            // inert so users don't get a no-op tap on a disabled-looking tile.
+            guard interactive else { return }
+            onTap()
+        }
         .scaleEffect(isHovered && interactive ? 1.005 : 1.0)
         .animation(DesignSystem.Animation.hoverTransition, value: isHovered)
         .accessibilityElement(children: .combine)
@@ -173,6 +179,12 @@ struct MeetingRecordingTile: View {
     }
 
     private func errorContent(message: String) -> some View {
+        // No manual dismiss button: the flow coordinator auto-dismisses the
+        // error state via its `startAutoDismissTimer` action and resets the
+        // pill view model to `.idle` on `.hidePill`. A view-side state mutation
+        // would bypass that machine and leave the coordinator in `.finishing`,
+        // making the tile look ready while a tap is a silent no-op until the
+        // timer expires. The floating pill follows the same convention.
         HStack(spacing: DesignSystem.Spacing.md) {
             ZStack {
                 Circle()
@@ -195,17 +207,6 @@ struct MeetingRecordingTile: View {
             }
 
             Spacer()
-
-            Button {
-                viewModel.state = .idle
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(8)
-            }
-            .buttonStyle(.plain)
-            .help("Dismiss")
         }
     }
 
