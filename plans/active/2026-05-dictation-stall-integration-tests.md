@@ -1,8 +1,17 @@
 # Dictation stall — integration tests against the real audio platform
 
-> Status: **ACTIVE**
+> Status: **ACTIVE — Tier 1 shipped, Tier 2 deferred**
 > Created: 2026-05-03
+> Branch: `plan/dictation-stall-tests`
 > Related: `journal/2026-05-03-dictation-silent-stall.md`, ADR-015, PR #189 (shared-mic-engine), PR #210 (diagnostic package)
+
+## Status (2026-05-03)
+
+- **Tier 1 shipped** — 5 tests in `Tests/MacParakeetTests/Audio/MicrophoneEngineRealPlatformTests.swift`. Run with `MACPARAKEET_HARDWARE_TESTS=1`. The 3-min idle test gates additionally on `MACPARAKEET_SLOW_HARDWARE_TESTS=1`.
+- **Local results**: 4 of 5 tests passed in ~5 s; idle-gap test was skipped. Cold start, post-cycle, post-VPIO, and 10-cycle stress paths are healthy on developer hardware. The bug did not reproduce in these scenarios. Trigger likely needs the 3-min idle gap, cross-process VPAU residue, or system-level events (sleep/wake). Tier 1 still earns its keep as permanent regression coverage for the healthy paths.
+- **Tier 2 deferred** — needs a test seam that doesn't exist today. Two routes documented below; recommended route is a small pure-function extraction.
+- **Tier 3 not started** — gated on Tier 1 idle-gap test result + a manual cross-process repro.
+- **Next**: run `MACPARAKEET_SLOW_HARDWARE_TESTS=1 swift test --filter testIdleGapDeliversBuffers` on a developer machine to test the most likely remaining trigger. If that reproduces, fix path (HAL probe + retry behind `dictationStallRecovery` flag) becomes concrete.
 
 ## Context
 
@@ -64,16 +73,40 @@ Each test uses `OSAllocatedUnfairLock` to count tap callbacks
 thread-safely from the audio render thread. Assert `count > 0` after
 the deadline.
 
-### Tier 2 — watchdog unit test (mock platform, fast)
+### Tier 2 — watchdog unit test (mock platform, fast) — **deferred**
 
-New file: `Tests/MacParakeetTests/Audio/AudioRecorderWatchdogTests.swift`
+> Status: **DEFERRED** — needs a test seam that doesn't exist today.
 
-Uses the existing `MockMicrophonePlatform` to simulate the bug shape
-("configureAndStart succeeds but no buffers ever arrive") and verifies
-PR #210's diagnostic watchdog actually logs
+Original intent: use the existing `MockMicrophonePlatform` to simulate
+the bug shape ("configureAndStart succeeds but no buffers ever arrive")
+and verify PR #210's diagnostic watchdog actually logs
 `dictation_capture_no_buffers_within_timeout`. This catches *future
-regressions in the diagnostic itself* — without it, we'd only know
-the watchdog is broken when a stall happens and we get no log.
+regressions in the diagnostic itself* — without it, we'd only know the
+watchdog is broken when a stall happens and we get no log.
+
+Why deferred: the watchdog has no observable signal short of writing
+to the user's log file. `AudioCaptureDiagnostics.append` writes via a
+private static `FileHandle` to the path computed in
+`AppPaths.logsDir`; there is no injection point, and the firing-decision
+state (`captureDiagnosticsTimers` in `AudioRecorder`) is private and
+unreachable even via `@testable import`.
+
+Two routes available, each requiring source changes outside the
+test-only scope of this plan:
+
+1. **Extract the firing decision to a pure function.** Pull the
+   "should this timer fire?" logic out of
+   `AudioRecorder.scheduleFirstBufferTimeout` into a small testable
+   helper (`WatchdogTimerDecision.shouldFire(armed:firstBufferSeen:current:for:)`).
+   Tiny extraction, comprehensive test coverage, no behavior change.
+   **Recommended.**
+
+2. **Inject a logger sink into `AudioCaptureDiagnostics`.** Make the
+   `append` destination overridable for tests. Broader API change with
+   blast radius across all callers; not justified for one watchdog.
+
+Pick (1) when we're willing to take a small source change. Until then,
+the watchdog is verified by code review and field signal only.
 
 ### Tier 3 — cross-process VPAU residue (optional, if Tier 1 misses)
 
