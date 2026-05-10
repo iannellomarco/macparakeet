@@ -19,6 +19,37 @@ final class ClipboardServiceTests: XCTestCase {
         )
     }
 
+    func testPasteTextWriteFailureRestoresClipboardAndDoesNotPostPaste() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var attemptedWrites: [String] = []
+        var pasteWasPosted = false
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting {
+                pasteWasPosted = true
+            },
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            pasteboardStringWriter: { _, text in
+                attemptedWrites.append(text)
+                return false
+            }
+        )
+
+        do {
+            try await service.pasteText("dictation")
+            XCTFail("Expected pasteText to throw when writing to the pasteboard fails")
+        } catch ClipboardServiceError.pasteboardWriteFailed {
+            XCTAssertEqual(attemptedWrites, ["dictation"])
+            XCTAssertFalse(pasteWasPosted)
+            XCTAssertEqual(pasteboard.string(forType: .string), "original")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testPasteTextRestoresOriginalClipboardAfterConfiguredDelay() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }
@@ -68,21 +99,82 @@ final class ClipboardServiceTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), "original")
     }
 
-    func testUserClipboardChangeDuringRestoreWindowIsNotClobbered() async throws {
+    func testPasteTextWithActionSkipsPasteForEmptyTextAndFiresKeystroke() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }
         replacePasteboard(pasteboard, with: "original")
 
+        var pasteWasPosted = false
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: {
+                    pasteWasPosted = true
+                },
+                onKeystroke: { keyCode in
+                    keystrokes.append(keyCode)
+                }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay
+        )
+
+        let fired = try await service.pasteTextWithAction("  \n", postPasteAction: .returnKey)
+
+        XCTAssertTrue(fired)
+        XCTAssertFalse(pasteWasPosted)
+        XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+        XCTAssertEqual(pasteboard.string(forType: .string), "original")
+    }
+
+    func testPasteTextWithActionPastesTextThenFiresKeystroke() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var pastedStrings: [String] = []
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: {
+                    pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+                },
+                onKeystroke: { keyCode in
+                    keystrokes.append(keyCode)
+                }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay
+        )
+
+        let fired = try await service.pasteTextWithAction("dictation", postPasteAction: .returnKey)
+
+        XCTAssertTrue(fired)
+        XCTAssertEqual(pastedStrings, ["dictation"])
+        XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
+    func testUserClipboardChangeDuringRestoreWindowIsNotClobbered() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        let restoreAttempted = expectation(description: "scheduled restore attempted")
+
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
-            clipboardRestoreDelay: Self.shortRestoreDelay
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            restoreAttemptObserver: {
+                restoreAttempted.fulfill()
+            }
         )
 
         try await service.pasteText("dictation")
         replacePasteboard(pasteboard, with: "user copy")
 
-        try await waitPastRestoreWindow()
+        await fulfillment(of: [restoreAttempted], timeout: 2)
 
         XCTAssertEqual(pasteboard.string(forType: .string), "user copy")
     }
@@ -111,19 +203,71 @@ final class ClipboardServiceTests: XCTestCase {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }
         replacePasteboard(pasteboard, with: "original")
+        let restoreAttempted = expectation(description: "scheduled restore attempted")
 
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
-            clipboardRestoreDelay: Self.shortRestoreDelay
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            restoreAttemptObserver: {
+                restoreAttempted.fulfill()
+            }
         )
 
         try await service.pasteText("dictation")
         await service.copyToClipboard("manual copy")
 
-        try await waitPastRestoreWindow()
+        await fulfillment(of: [restoreAttempted], timeout: 2)
 
         XCTAssertEqual(pasteboard.string(forType: .string), "manual copy")
+    }
+
+    func testCopyToClipboardWriteFailurePreservesCurrentClipboard() async {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            pasteboardStringWriter: { _, _ in false }
+        )
+
+        let copied = await service.copyToClipboard("manual copy")
+
+        XCTAssertFalse(copied)
+        XCTAssertEqual(pasteboard.string(forType: .string), "original")
+    }
+
+    func testFailedCopyToClipboardKeepsPendingOriginalRestore() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var failNextWrite = false
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            pasteboardStringWriter: { pasteboard, text in
+                guard !failNextWrite else {
+                    failNextWrite = false
+                    return false
+                }
+                return pasteboard.setString(text, forType: .string)
+            }
+        )
+
+        try await service.pasteText("dictation")
+        failNextWrite = true
+
+        let copied = await service.copyToClipboard("manual copy")
+
+        XCTAssertFalse(copied)
+        XCTAssertEqual(pasteboard.string(forType: .string), "dictation")
+
+        try await waitForPasteboardString("original", on: pasteboard)
     }
 
     private static let shortRestoreDelay: TimeInterval = 0.03
@@ -154,22 +298,26 @@ final class ClipboardServiceTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), expected, file: file, line: line)
     }
 
-    private func waitPastRestoreWindow() async throws {
-        try await Task.sleep(for: .milliseconds(300))
-    }
 }
 
 @MainActor
 private final class RecordingClipboardEventPosting: ClipboardEventPosting {
     private let onPaste: @MainActor () throws -> Void
+    private let onKeystroke: @MainActor (UInt16) throws -> Void
 
-    init(onPaste: @escaping @MainActor () throws -> Void = {}) {
+    init(
+        onPaste: @escaping @MainActor () throws -> Void = {},
+        onKeystroke: @escaping @MainActor (UInt16) throws -> Void = { _ in }
+    ) {
         self.onPaste = onPaste
+        self.onKeystroke = onKeystroke
     }
 
     func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
         try onPaste()
     }
 
-    func simulateKeystroke(_ keyCode: UInt16) throws {}
+    func simulateKeystroke(_ keyCode: UInt16) throws {
+        try onKeystroke(keyCode)
+    }
 }

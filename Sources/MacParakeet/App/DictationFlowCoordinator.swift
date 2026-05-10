@@ -471,8 +471,15 @@ final class DictationFlowCoordinator {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else {
-                        await self.clipboardService.copyToClipboard(transcript)
-                        self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
+                        let copied = await self.clipboardService.copyToClipboard(transcript)
+                        self.sendEvent(
+                            .pasteFailed(
+                                generation: gen,
+                                message: copied
+                                    ? "Copied to clipboard. Press Cmd+V."
+                                    : "Paste failed and the clipboard could not be updated."
+                            )
+                        )
                     }
                 }
             }

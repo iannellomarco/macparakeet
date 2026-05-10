@@ -7,7 +7,8 @@ public protocol ClipboardServiceProtocol: Sendable {
     func pasteText(_ text: String) async throws
     /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
-    func copyToClipboard(_ text: String) async
+    @discardableResult
+    func copyToClipboard(_ text: String) async -> Bool
 }
 
 public enum ClipboardServiceError: LocalizedError {
@@ -96,6 +97,11 @@ private final class ClipboardRestoreCoordinator {
 
     private var pendingRestore: PendingRestore?
     private var generation: UInt64 = 0
+    private let restoreAttemptObserver: (@MainActor () -> Void)?
+
+    init(restoreAttemptObserver: (@MainActor () -> Void)? = nil) {
+        self.restoreAttemptObserver = restoreAttemptObserver
+    }
 
     func originalItemsForNewPaste(
         currentItems: [NSPasteboardItem]?,
@@ -113,12 +119,18 @@ private final class ClipboardRestoreCoordinator {
         return currentItems
     }
 
-    func temporaryClipboardWasRestoredAfterFailedWrite(changeCount: Int) {
+    func temporaryClipboardWasRestoredAfterFailedWrite(
+        previousChangeCount: Int,
+        restoredChangeCount: Int
+    ) {
         guard var pendingRestore else {
             return
         }
+        guard previousChangeCount == pendingRestore.latestTemporaryChangeCount else {
+            return
+        }
 
-        pendingRestore.latestTemporaryChangeCount = changeCount
+        pendingRestore.latestTemporaryChangeCount = restoredChangeCount
         self.pendingRestore = pendingRestore
     }
 
@@ -148,6 +160,10 @@ private final class ClipboardRestoreCoordinator {
     }
 
     private func restoreIfCurrent(pasteboard: NSPasteboard, generation: UInt64) {
+        defer {
+            restoreAttemptObserver?()
+        }
+
         guard let pendingRestore, pendingRestore.generation == generation else {
             return
         }
@@ -179,6 +195,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
     private let eventPosting: ClipboardEventPosting
     private let clipboardRestoreDelay: TimeInterval
     private let restoreCoordinator: ClipboardRestoreCoordinator
+    private let pasteboardStringWriter: @MainActor (NSPasteboard, String) -> Bool
 
     public convenience init() {
         self.init(
@@ -186,7 +203,8 @@ public final class ClipboardService: ClipboardServiceProtocol {
             pasteShortcutKeyResolver: PasteShortcutKeyResolver(),
             eventPosting: CGClipboardEventPosting(),
             clipboardRestoreDelay: Self.defaultClipboardRestoreDelay,
-            restoreCoordinator: Self.sharedRestoreCoordinator
+            restoreCoordinator: Self.sharedRestoreCoordinator,
+            pasteboardStringWriter: Self.writeString
         )
     }
 
@@ -194,14 +212,17 @@ public final class ClipboardService: ClipboardServiceProtocol {
         pasteboard: NSPasteboard = .general,
         pasteShortcutKeyResolver: PasteShortcutKeyResolver = PasteShortcutKeyResolver(),
         eventPosting: ClipboardEventPosting = CGClipboardEventPosting(),
-        clipboardRestoreDelay: TimeInterval = ClipboardService.defaultClipboardRestoreDelay
+        clipboardRestoreDelay: TimeInterval = ClipboardService.defaultClipboardRestoreDelay,
+        restoreAttemptObserver: (@MainActor () -> Void)? = nil,
+        pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool = ClipboardService.writeString
     ) {
         self.init(
             pasteboard: pasteboard,
             pasteShortcutKeyResolver: pasteShortcutKeyResolver,
             eventPosting: eventPosting,
             clipboardRestoreDelay: clipboardRestoreDelay,
-            restoreCoordinator: ClipboardRestoreCoordinator()
+            restoreCoordinator: ClipboardRestoreCoordinator(restoreAttemptObserver: restoreAttemptObserver),
+            pasteboardStringWriter: pasteboardStringWriter
         )
     }
 
@@ -210,13 +231,15 @@ public final class ClipboardService: ClipboardServiceProtocol {
         pasteShortcutKeyResolver: PasteShortcutKeyResolver,
         eventPosting: ClipboardEventPosting,
         clipboardRestoreDelay: TimeInterval,
-        restoreCoordinator: ClipboardRestoreCoordinator
+        restoreCoordinator: ClipboardRestoreCoordinator,
+        pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool
     ) {
         self.pasteboard = pasteboard
         self.pasteShortcutKeyResolver = pasteShortcutKeyResolver
         self.eventPosting = eventPosting
         self.clipboardRestoreDelay = clipboardRestoreDelay
         self.restoreCoordinator = restoreCoordinator
+        self.pasteboardStringWriter = pasteboardStringWriter
     }
 
     /// Paste text into the active app by:
@@ -229,17 +252,21 @@ public final class ClipboardService: ClipboardServiceProtocol {
 
         // 1. Save current clipboard contents
         let currentItems = Self.snapshotItems(from: pasteboard)
+        let previousChangeCount = pasteboard.changeCount
         let savedItems = restoreCoordinator.originalItemsForNewPaste(
             currentItems: currentItems,
-            currentChangeCount: pasteboard.changeCount
+            currentChangeCount: previousChangeCount
         )
 
         // 2. Set transcript
         pasteboard.clearContents()
-        guard pasteboard.setString(text, forType: .string) else {
+        guard pasteboardStringWriter(pasteboard, text) else {
             pasteboard.clearContents()
             Self.writeItems(currentItems, to: pasteboard)
-            restoreCoordinator.temporaryClipboardWasRestoredAfterFailedWrite(changeCount: pasteboard.changeCount)
+            restoreCoordinator.temporaryClipboardWasRestoredAfterFailedWrite(
+                previousChangeCount: previousChangeCount,
+                restoredChangeCount: pasteboard.changeCount
+            )
             throw ClipboardServiceError.pasteboardWriteFailed
         }
         let ourChangeCount = pasteboard.changeCount
@@ -256,10 +283,25 @@ public final class ClipboardService: ClipboardServiceProtocol {
     }
 
     /// Copy text to clipboard without paste simulation
-    public func copyToClipboard(_ text: String) async {
-        restoreCoordinator.cancelPendingRestore()
+    @discardableResult
+    public func copyToClipboard(_ text: String) async -> Bool {
+        let currentItems = Self.snapshotItems(from: pasteboard)
+        let previousChangeCount = pasteboard.changeCount
+
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        guard pasteboardStringWriter(pasteboard, text) else {
+            pasteboard.clearContents()
+            Self.writeItems(currentItems, to: pasteboard)
+            restoreCoordinator.temporaryClipboardWasRestoredAfterFailedWrite(
+                previousChangeCount: previousChangeCount,
+                restoredChangeCount: pasteboard.changeCount
+            )
+            logger.error("Failed to write text to clipboard during copy fallback")
+            return false
+        }
+
+        restoreCoordinator.cancelPendingRestore()
+        return true
     }
 
     @discardableResult
@@ -312,5 +354,9 @@ public final class ClipboardService: ClipboardServiceProtocol {
         if let items, !items.isEmpty {
             pasteboard.writeObjects(items)
         }
+    }
+
+    private static func writeString(to pasteboard: NSPasteboard, text: String) -> Bool {
+        pasteboard.setString(text, forType: .string)
     }
 }
