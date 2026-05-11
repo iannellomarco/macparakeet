@@ -7,55 +7,60 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { motion, palette, typography } from '../theme/tokens';
-import { ParakeetMark } from './ParakeetMark';
+import { AppIcon } from './AppIcon';
 import { SCRIPT } from '../content/script';
 
 /**
- * Closing card — used by Demo60 and HeroLoop30 as the final 3-6 second beat.
+ * Closing card — used by Demo60 and HeroLoop30 as the final beat.
  *
- * Paper-cream background, coral parakeet mark, ink headline, coral URL.
- * Mirrors the Hook composition's visual rhythm so the demo book-ends
- * cleanly. All copy pulled from SCRIPT.closing.
+ * Paper-cream background, the actual MacParakeet app icon (white
+ * parakeet on near-black, rounded macOS corners, soft shadow), ink
+ * headline, coral URL. The icon's near-black background creates a
+ * dock-like card sitting on the warm cream ground — reads as "this is
+ * the app you're installing" rather than abstract branding.
  */
 export const Closing: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const markProgress = spring({
+  const iconProgress = spring({
     frame: frame - 4,
     fps,
     config: motion.springSoft,
-    durationInFrames: 36,
+    durationInFrames: 40,
   });
-  const markOpacity = interpolate(frame, [0, 24], [0, 1], {
+  const iconOpacity = interpolate(frame, [0, 28], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const markScale = interpolate(markProgress, [0, 1], [0.94, 1]);
+  const iconScale = interpolate(iconProgress, [0, 1], [0.92, 1]);
 
   const headlineProgress = spring({
-    frame: frame - 22,
+    frame: frame - 24,
     fps,
     config: motion.springSoft,
     durationInFrames: 36,
   });
-  const headlineOpacity = interpolate(frame, [22, 38], [0, 1], {
+  const headlineOpacity = interpolate(frame, [24, 42], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   const headlineTranslate = interpolate(headlineProgress, [0, 1], [16, 0]);
 
   const urlProgress = spring({
-    frame: frame - 42,
+    frame: frame - 46,
     fps,
     config: motion.springSoft,
     durationInFrames: 36,
   });
-  const urlOpacity = interpolate(frame, [42, 58], [0, 1], {
+  const urlOpacity = interpolate(frame, [46, 64], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   const urlTranslate = interpolate(urlProgress, [0, 1], [12, 0]);
+
+  // Subtle breath on the icon — ±1% scale over a slow cycle.
+  const breath = Math.sin((frame / fps) * 2 * Math.PI * 0.3) * 0.01 + 1;
 
   return (
     <AbsoluteFill style={{ backgroundColor: palette.paper }}>
@@ -72,12 +77,12 @@ export const Closing: React.FC = () => {
       >
         <div
           style={{
-            opacity: markOpacity,
-            transform: `scale(${markScale})`,
+            opacity: iconOpacity,
+            transform: `scale(${iconScale * breath})`,
             willChange: 'transform, opacity',
           }}
         >
-          <ParakeetMark size={140} color={palette.coral} />
+          <AppIcon size={220} shadow />
         </div>
 
         <div
