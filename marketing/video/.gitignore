@@ -1,0 +1,13 @@
+node_modules/
+out/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Raw screencasts and generated voiceovers are large binaries.
+# Track via Git LFS or external storage if needed.
+src/assets/screencasts/*.mov
+src/assets/screencasts/*.mp4
+src/assets/audio/*.mp3
+src/assets/audio/*.wav
