@@ -34,20 +34,23 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(quality, .m4a)
     }
 
-    func testResolveYouTubeAudioQualityUsesStoredQualityForAppDefaultWhenValid() {
+    func testResolveYouTubeAudioQualityFallsBackToM4AForLegacyBestAvailableStoredValue() {
+        // After 3.0.0 removed `best_available`, existing UserDefaults values
+        // from CLI 2.1.0 are no longer valid raw values — they must coerce to
+        // .m4a rather than crash or surface an option that no longer exists.
         let quality = TranscribeCommand.resolveYouTubeAudioQuality(
             .appDefault,
-            storedQuality: YouTubeAudioQuality.bestAvailable.rawValue
+            storedQuality: "best_available"
         )
-        XCTAssertEqual(quality, .bestAvailable)
+        XCTAssertEqual(quality, .m4a)
     }
 
-    func testResolveYouTubeAudioQualityRespectsExplicitQuality() {
+    func testResolveYouTubeAudioQualityRespectsExplicitM4A() {
         let quality = TranscribeCommand.resolveYouTubeAudioQuality(
-            .bestAvailable,
+            .m4a,
             storedQuality: YouTubeAudioQuality.m4a.rawValue
         )
-        XCTAssertEqual(quality, .bestAvailable)
+        XCTAssertEqual(quality, .m4a)
     }
 
     func testResolveSpeechEngineUsesStoredDefaultWhenRequested() {
@@ -158,13 +161,22 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.speakerDetection, .appDefault)
     }
 
-    func testParsesYouTubeAudioQuality() throws {
+    func testParsesYouTubeAudioQualityM4A() throws {
         let command = try TranscribeCommand.parse([
             "https://www.youtube.com/watch?v=abc",
-            "--youtube-audio-quality", "best-available",
+            "--youtube-audio-quality", "m4a",
         ])
 
-        XCTAssertEqual(command.youtubeAudioQuality, .bestAvailable)
+        XCTAssertEqual(command.youtubeAudioQuality, .m4a)
+    }
+
+    func testParsingYouTubeAudioQualityBestAvailableFails() {
+        // 3.0.0 removed `best-available`; ArgumentParser should reject the
+        // value at parse time so scripted callers see a clear migration error.
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "https://www.youtube.com/watch?v=abc",
+            "--youtube-audio-quality", "best-available",
+        ]))
     }
 
     func testParakeetRemainsDefaultEngine() throws {

@@ -80,6 +80,38 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+## [3.0.0] -- 2026-05-11
+
+### Removed (breaking)
+
+- `transcribe --youtube-audio-quality best-available` is no longer accepted.
+  ArgumentParser rejects the value at parse time with a usage error (exit
+  code 2). The flag still accepts `app-default` and `m4a`; `m4a` is the only
+  saved-file format going forward.
+- `config set youtube-audio-quality best-available` is rejected with a
+  `ValidationError` ("Use m4a."). `config get youtube-audio-quality` returns
+  `m4a` for any legacy stored value, including the now-unknown
+  `best_available` raw string.
+- `YouTubeAudioQuality.bestAvailable` enum case removed from
+  `MacParakeetCore`. Existing UserDefaults values of `best_available`
+  silently coerce to `.m4a` on read; no migration code is needed.
+
+  **Rationale.** AVPlayer on macOS cannot decode WebM or Opus, the formats
+  yt-dlp produces under "best available." The saved audio file silently
+  failed to play through the in-app audio scrubber while the video panel
+  worked (because the video panel re-extracts a fresh playable stream URL).
+  The option's only nominal benefit — a marginally higher upstream Opus
+  bitrate — disappears after the 16 kHz mono WAV downsample used for STT,
+  so transcription quality is unaffected by this removal. We considered
+  three alternatives before the cut: (1) transcoding Opus → AAC at download
+  time, which adds a second generation of lossy encoding and makes "best
+  available" worse than `m4a`; (2) falling back to a streamed YouTube URL
+  for audio playback, which violates the project's local-first stance,
+  reintroduces yt-dlp rate-limit exposure on every detail-view open, and
+  breaks offline playback; (3) keeping the option with a sharper warning
+  string, which leaves the trap intact for users who skim Settings copy.
+  Removal is the only path that respects "Simplicity is the product."
+
 ### Added
 
 - `transcribe --engine app-default` resolves the speech engine and Whisper

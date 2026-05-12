@@ -63,8 +63,15 @@ final class ConfigCommandTests: XCTestCase {
     }
 
     func testReadCanonicalizesUnderscoreKeys() throws {
-        defaults.set(YouTubeAudioQuality.bestAvailable.rawValue, forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
-        XCTAssertEqual(try ConfigCommand.read(key: "youtube_audio_quality", defaults: defaults), "best-available")
+        defaults.set(YouTubeAudioQuality.m4a.rawValue, forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
+        XCTAssertEqual(try ConfigCommand.read(key: "youtube_audio_quality", defaults: defaults), "m4a")
+    }
+
+    func testReadFallsBackToM4AForLegacyBestAvailable() throws {
+        // Existing UserDefaults from CLI 2.1.0 may still hold "best_available";
+        // YouTubeAudioQuality.current() coerces unknown raw values to .m4a.
+        defaults.set("best_available", forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
+        XCTAssertEqual(try ConfigCommand.read(key: "youtube-audio-quality", defaults: defaults), "m4a")
     }
 
     func testCanonicalKeyNormalizesUnderscoreAliases() throws {
@@ -114,11 +121,20 @@ final class ConfigCommandTests: XCTestCase {
         XCTAssertEqual(try ConfigCommand.write(key: "save-transcription-audio", value: "off", defaults: defaults), "off")
         XCTAssertEqual(defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool, false)
 
-        XCTAssertEqual(try ConfigCommand.write(key: "youtube-audio-quality", value: "best-available", defaults: defaults), "best-available")
+        XCTAssertEqual(try ConfigCommand.write(key: "youtube-audio-quality", value: "m4a", defaults: defaults), "m4a")
         XCTAssertEqual(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey),
-            YouTubeAudioQuality.bestAvailable.rawValue
+            YouTubeAudioQuality.m4a.rawValue
         )
+    }
+
+    func testWriteYouTubeAudioQualityRejectsRemovedBestAvailable() {
+        // 3.0.0 removed the "best-available" value; writing it now must fail
+        // with a validation error so scripted callers learn during migration.
+        XCTAssertThrowsError(try ConfigCommand.write(key: "youtube-audio-quality", value: "best-available", defaults: defaults)) { error in
+            XCTAssertTrue(error is ValidationError, "Expected ValidationError, got \(type(of: error))")
+            XCTAssertTrue("\(error)".contains("m4a"))
+        }
     }
 
     func testWriteCanonicalizesUnderscoreKeys() throws {

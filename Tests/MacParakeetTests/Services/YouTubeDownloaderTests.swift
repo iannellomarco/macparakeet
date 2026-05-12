@@ -69,17 +69,6 @@ final class YouTubeDownloaderTests: XCTestCase {
         ])
     }
 
-    func testDownloadAudioArgumentsUseBestAvailableSelector() {
-        let args = YouTubeDownloader.downloadAudioArguments(
-            ffmpegDir: "/opt/macparakeet/bin",
-            outputTemplate: "/tmp/video.%(ext)s",
-            url: "https://www.youtube.com/watch?v=abc",
-            quality: .bestAvailable
-        )
-
-        XCTAssertEqual(formatSelector(in: args), "bestaudio/best")
-    }
-
     func testDownloadAudioArgumentsIncludeJavaScriptRuntimeArgsBeforeFFmpeg() {
         let args = YouTubeDownloader.downloadAudioArguments(
             ffmpegDir: "/opt/macparakeet/bin",

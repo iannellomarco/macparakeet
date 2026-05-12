@@ -18,14 +18,11 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
     case m4a
-    case bestAvailable = "best_available"
 
     public var displayTitle: String {
         switch self {
         case .m4a:
             return "M4A"
-        case .bestAvailable:
-            return "Best available"
         }
     }
 
@@ -33,8 +30,6 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
         switch self {
         case .m4a:
             return "Download an Apple-friendly m4a file for reliable playback and sharing. Falls back if m4a is unavailable."
-        case .bestAvailable:
-            return "YouTube's highest-quality audio stream. Often saves WebM/Opus, which the in-app audio scrubber can't decode — use Show Video for playback. Transcription is unaffected."
         }
     }
 
@@ -42,8 +37,6 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
         switch self {
         case .m4a:
             return "bestaudio[ext=m4a]/bestaudio/best"
-        case .bestAvailable:
-            return "bestaudio/best"
         }
     }
 

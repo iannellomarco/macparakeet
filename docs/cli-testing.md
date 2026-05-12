@@ -27,7 +27,7 @@ macparakeet-cli
 ├── transcribe <input> [options]         Transcribe a file or YouTube URL
 │   └── --engine app-default|parakeet|whisper [--language <code>]
 │       --speaker-detection app-default|on|off
-│       --youtube-audio-quality app-default|m4a|best-available
+│       --youtube-audio-quality app-default|m4a
 ├── history                              View and manage history
 │   ├── dictations [--limit] [--json]    List recent dictations (default)
 │   ├── transcriptions [--limit] [--json]  List recent transcriptions
@@ -143,13 +143,13 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
   --speaker-detection on \
   --mode clean \
   --downloaded-audio keep \
-  --youtube-audio-quality best-available
+  --youtube-audio-quality m4a
 ```
 
-`--youtube-audio-quality app-default` follows the GUI setting. `m4a` matches
-the app's default compatibility-first selector. `best-available` asks `yt-dlp`
-for the best audio stream and then lets the normal conversion pipeline prepare
-the STT input.
+`--youtube-audio-quality app-default` follows the GUI setting; `m4a` pins
+the m4a-first selector so the saved audio file plays through AVPlayer.
+(`best-available` existed in 2.1.0 but was removed in 3.0.0 — see
+`Sources/CLI/CHANGELOG.md`.)
 
 ### Speech Engine Selection
 

@@ -136,7 +136,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         testDefaults.set(
-            YouTubeAudioQuality.bestAvailable.rawValue,
+            YouTubeAudioQuality.m4a.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey
         )
         testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
@@ -157,7 +157,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
-        XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
+        XCTAssertEqual(vm.youtubeAudioQuality, .m4a)
         XCTAssertTrue(vm.speakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
@@ -446,12 +446,23 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testSettingYouTubeAudioQualityPersists() {
-        viewModel.youtubeAudioQuality = .bestAvailable
+        viewModel.youtubeAudioQuality = .m4a
 
         XCTAssertEqual(
             testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey),
-            YouTubeAudioQuality.bestAvailable.rawValue
+            YouTubeAudioQuality.m4a.rawValue
         )
+    }
+
+    func testYouTubeAudioQualityFallsBackToM4AForLegacyBestAvailable() {
+        // Existing UserDefaults from CLI 2.1.0 / app builds before this PR
+        // may hold "best_available" — `YouTubeAudioQuality.current()` coerces
+        // unknown raw values to .m4a so the VM never surfaces a removed case.
+        testDefaults.set("best_available", forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.youtubeAudioQuality, .m4a)
     }
 
     func testSettingSpeakerDiarizationPersists() {

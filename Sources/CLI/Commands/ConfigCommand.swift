@@ -27,7 +27,7 @@ struct ConfigCommand: ParsableCommand {
           whisper-language          auto|<Whisper language code>    default: auto
           speaker-detection         on|off                          default: off
           save-transcription-audio  on|off                          default: on
-          youtube-audio-quality     m4a|best-available              default: m4a
+          youtube-audio-quality     m4a                             default: m4a
 
         Full event catalog:
           https://github.com/moona3k/macparakeet/blob/main/docs/telemetry.md
@@ -255,10 +255,8 @@ struct ConfigCommand: ParsableCommand {
         switch raw {
         case "m4a":
             return .m4a
-        case "best-available", "bestavailable":
-            return .bestAvailable
         default:
-            throw ValidationError("Invalid value for youtube-audio-quality: '\(value)'. Use m4a or best-available.")
+            throw ValidationError("Invalid value for youtube-audio-quality: '\(value)'. Use m4a.")
         }
     }
 
@@ -266,8 +264,6 @@ struct ConfigCommand: ParsableCommand {
         switch quality {
         case .m4a:
             return "m4a"
-        case .bestAvailable:
-            return "best-available"
         }
     }
 

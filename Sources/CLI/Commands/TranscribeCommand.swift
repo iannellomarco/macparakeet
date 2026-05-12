@@ -18,7 +18,6 @@ enum DownloadedAudioPolicy: String, ExpressibleByArgument {
 enum YouTubeAudioQualityOption: String, ExpressibleByArgument {
     case appDefault = "app-default"
     case m4a
-    case bestAvailable = "best-available"
 }
 
 enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -72,7 +71,7 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(help: "Downloaded YouTube audio retention: app-default, keep, delete.")
     var downloadedAudio: DownloadedAudioPolicy = .appDefault
 
-    @Option(help: "YouTube audio quality: app-default, m4a, best-available.")
+    @Option(help: "YouTube audio quality: app-default, m4a.")
     var youtubeAudioQuality: YouTubeAudioQualityOption = .appDefault
 
     @Option(help: "Path to SQLite database file (defaults to the app database).")
@@ -103,8 +102,6 @@ struct TranscribeCommand: AsyncParsableCommand {
         storedQuality: String?
     ) -> YouTubeAudioQuality {
         switch quality {
-        case .bestAvailable:
-            return .bestAvailable
         case .m4a:
             return .m4a
         case .appDefault:
