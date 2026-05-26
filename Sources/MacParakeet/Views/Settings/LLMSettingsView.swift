@@ -16,6 +16,8 @@ struct LLMSettingsView: View {
         .gemini,
         .openrouter,
     ]
+    private static let lmStudioDownloadURL = URL(string: "https://lmstudio.ai/download?os=mac")!
+    private static let ollamaDownloadURL = URL(string: "https://ollama.com/download")!
 
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
@@ -92,7 +94,7 @@ struct LLMSettingsView: View {
                 icon: "desktopcomputer",
                 title: "LM Studio",
                 badge: "Recommended",
-                detail: "Friendliest local setup. Start its local server, then MacParakeet can find loaded models.",
+                detail: "Friendliest local setup. Install LM Studio, load a model, start its local server, then MacParakeet can find it.",
                 providerID: .lmstudio,
                 actionLabel: "Use LM Studio"
             )
@@ -103,7 +105,7 @@ struct LLMSettingsView: View {
                 icon: "terminal",
                 title: "Ollama",
                 badge: nil,
-                detail: "Local models for users who already run Ollama or prefer a command-line install.",
+                detail: "Local models for users who already run Ollama or prefer a command-line app.",
                 providerID: .ollama,
                 actionLabel: "Use Ollama"
             )
@@ -225,6 +227,14 @@ struct LLMSettingsView: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let installLink = localInstallLink(for: providerID) {
+                    Link(destination: installLink.url) {
+                        Label(installLink.label, systemImage: "arrow.up.right.square")
+                    }
+                    .parakeetAction(.subtle)
+                    .font(DesignSystem.Typography.caption)
+                }
             }
 
             Spacer(minLength: DesignSystem.Spacing.md)
@@ -300,26 +310,46 @@ struct LLMSettingsView: View {
         }
     }
 
-    private var localModelSetupHint: String? {
+    private var localModelSetupHint: LocalModelSetupHint? {
         guard viewModel.canRefreshModelList, viewModel.discoveredModelCount == 0 else { return nil }
         switch viewModel.selectedProviderID {
         case .lmstudio:
-            return "Open LM Studio, load a model, start the local server, then refresh models."
+            return LocalModelSetupHint(
+                message: "No LM Studio models found yet. Install or open LM Studio, load a model, start the local server, then refresh.",
+                downloadLabel: "Get LM Studio",
+                downloadURL: Self.lmStudioDownloadURL
+            )
         case .ollama:
-            return "Start Ollama, install a model, then refresh models."
+            return LocalModelSetupHint(
+                message: "No Ollama models found yet. Install or open Ollama, pull a model, then refresh.",
+                downloadLabel: "Get Ollama",
+                downloadURL: Self.ollamaDownloadURL
+            )
         default:
             return nil
         }
     }
 
-    private func localModelHintRow(_ message: String) -> some View {
-        HStack(spacing: 6) {
+    private func localModelHintRow(_ hint: LocalModelSetupHint) -> some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
-            Text(message)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(hint.message)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Link(destination: hint.downloadURL) {
+                    Label(hint.downloadLabel, systemImage: "arrow.up.right.square")
+                }
+                .parakeetAction(.subtle)
                 .font(DesignSystem.Typography.caption)
-                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -524,6 +554,17 @@ struct LLMSettingsView: View {
 
     private func setupPathTint(for providerID: LLMProviderID) -> Color {
         viewModel.selectedProviderID == providerID ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary
+    }
+
+    private func localInstallLink(for providerID: LLMProviderID) -> LocalInstallLink? {
+        switch providerID {
+        case .lmstudio:
+            return LocalInstallLink(label: "Download LM Studio", url: Self.lmStudioDownloadURL)
+        case .ollama:
+            return LocalInstallLink(label: "Download Ollama", url: Self.ollamaDownloadURL)
+        default:
+            return nil
+        }
     }
 
     private func setupStatusIcon(for status: LLMSettingsViewModel.AISetupStatus) -> String {
@@ -863,6 +904,17 @@ struct LLMSettingsView: View {
             }
         }
     }
+}
+
+private struct LocalModelSetupHint {
+    let message: String
+    let downloadLabel: String
+    let downloadURL: URL
+}
+
+private struct LocalInstallLink {
+    let label: String
+    let url: URL
 }
 
 private struct AIFormatterActivationToggle: View {
