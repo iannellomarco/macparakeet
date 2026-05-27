@@ -633,11 +633,12 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
         // Try OpenAI-compatible format: { "data": [{ "id": "..." }] }
         if let modelsResponse = try? JSONDecoder().decode(ModelsListResponse.self, from: data) {
-            return modelsResponse.data
+            let models = modelsResponse.data
                 .map { id in
                     // Gemini returns "models/gemini-2.5-flash" — strip prefix
                     id.id.hasPrefix("models/") ? String(id.id.dropFirst(7)) : id.id
                 }
+            return Self.filterListedModels(models, for: config)
                 .sorted()
         }
 
@@ -806,6 +807,34 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             return true
         }
         return false
+    }
+
+    private static func filterListedModels(_ models: [String], for config: LLMProviderConfig) -> [String] {
+        guard config.id == .openai else { return models }
+        return models.filter(isOpenAIStreamingChatModel)
+    }
+
+    private static func isOpenAIStreamingChatModel(_ model: String) -> Bool {
+        let lowered = model.lowercased()
+        let unsupportedSubstrings = [
+            "audio",
+            "dall-e",
+            "embedding",
+            "image",
+            "moderation",
+            "realtime",
+            "sora",
+            "transcribe",
+            "tts",
+            "whisper",
+        ]
+        guard !unsupportedSubstrings.contains(where: lowered.contains) else { return false }
+        guard !lowered.hasSuffix("-pro") else { return false }
+        return lowered.hasPrefix("gpt-")
+            || lowered.hasPrefix("o1")
+            || lowered.hasPrefix("o3")
+            || lowered.hasPrefix("o4")
+            || lowered.hasPrefix("chatgpt-")
     }
 
     private static func responseFormat(from format: ChatResponseFormat?) -> OpenAIResponseFormat? {
