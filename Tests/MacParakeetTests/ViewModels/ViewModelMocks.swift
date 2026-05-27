@@ -755,6 +755,18 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    func analyzeJournal(
+        ocrText: String,
+        runningSummary: String,
+        meetingContext: String,
+        pendingQuestions: String,
+        screenshotCount: Int
+    ) async throws -> LLMResult {
+        summarizeCallCount += 1
+        if let error = errorToThrow { throw error }
+        return LLMResult(output: summarizeResult, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
 }
 
 // MARK: - MockPromptRepository

@@ -439,4 +439,7 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
+    func analyzeJournal(ocrText: String, runningSummary: String, meetingContext: String, pendingQuestions: String, screenshotCount: Int) async throws -> LLMResult {
+        LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
+    }
 }

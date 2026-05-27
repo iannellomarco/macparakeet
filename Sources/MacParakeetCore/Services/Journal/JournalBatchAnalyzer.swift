@@ -85,25 +85,16 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         // 5b. Fetch same-day meeting transcripts for richer context
         let meetingContext = fetchSameDayMeetings(session: session)
 
-        // 6. Render the journal prompt with template variables
-        let renderedPrompt = renderJournalPrompt(
-            ocrText: ocrText,
-            runningSummary: session.runningSummary ?? "(No observations yet — this is the first analysis of the day.)",
-            pendingQuestions: questionsText,
-            meetingContext: meetingContext,
-            screenshotCount: screenshots.count
-        )
-
-        // 7. Send to LLM — split into system prompt (instructions) and user content
-        let systemPrompt = renderedPrompt
-        let userContent = "Please analyze the screen content and meeting transcripts above and produce the updated running summary, new observations, and pending questions in the specified format."
-        let fullTranscript = "\(systemPrompt)\n\n---\n\n\(userContent)"
+        // 6. Call the dedicated journal analysis method
         let analysisText: String
         let latencyMs: Int
         do {
-            let llmResult = try await llmService.generatePromptResultDetailed(
-                transcript: fullTranscript,
-                systemPrompt: systemPrompt
+            let llmResult = try await llmService.analyzeJournal(
+                ocrText: ocrText,
+                runningSummary: session.runningSummary ?? "(No observations yet — this is the first analysis of the day.)",
+                meetingContext: meetingContext,
+                pendingQuestions: questionsText,
+                screenshotCount: screenshots.count
             )
             analysisText = llmResult.output
             latencyMs = llmResult.latencyMs
@@ -199,70 +190,6 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         return questions.enumerated().map { i, q in
             "\(i + 1). \(q.question)"
         }.joined(separator: "\n")
-    }
-
-    private func renderJournalPrompt(
-        ocrText: String,
-        runningSummary: String,
-        pendingQuestions: String,
-        meetingContext: String,
-        screenshotCount: Int
-    ) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        let timeOfDay = formatter.string(from: Date())
-
-        var prompt = """
-            You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen.
-
-            Context:
-            - Current time: \(timeOfDay)
-            - Screenshots in this batch: \(screenshotCount)
-
-            Running day summary so far:
-            \(runningSummary)
-
-            Pending questions you previously asked (not yet answered):
-            \(pendingQuestions)
-            """
-
-        if !meetingContext.isEmpty {
-            prompt += """
-
-            Meeting transcripts from today (for cross-referencing with screen activity):
-            \(meetingContext)
-            """
-        }
-
-        prompt += """
-
-            New screen content to analyze:
-            \(ocrText)
-
-            Your task:
-
-            1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work. If meeting transcripts are available, cross-reference them with screen activity — e.g., "At 2pm you were editing the Q3 budget in Numbers, which aligns with the 1:30pm finance meeting where budget targets were discussed."
-
-            2. **Note unanswered observations.** If you see something you don't fully understand — an unfamiliar app, a cryptic document title, an ambiguous context — note it as a pending question. Be curious, not interrogative. Example: "At 2:15pm you were editing a spreadsheet called 'Q3 Budget Projections'. Was that for the Finance review on Friday?"
-
-            3. **Don't over-narrate repetition.** If the user stays in the same app doing the same thing for multiple batches, note it once and move on. Don't repeat "still in VS Code" every cycle.
-
-            4. **Be privacy-aware.** The OCR text captures what's visible on screen. If you detect sensitive content (passwords, personal financial details, private messages), do NOT reproduce it verbatim. Instead, describe the activity generically (e.g., "was reading personal messages" not "was reading message from Sarah about her medical results").
-
-            Output format:
-            ---
-            ## Updated Running Summary
-            (concise narrative updated with new batch)
-
-            ## New Observations
-            - bullet list of specific new things noticed
-
-            ## Pending Questions
-            - bullet list of clarification questions (add new ones, keep old ones that are still unanswered, remove any that look resolved by this batch)
-            ---
-            """
-
-        return prompt
     }
 
     private func extractSection(_ header: String, from text: String) -> String? {

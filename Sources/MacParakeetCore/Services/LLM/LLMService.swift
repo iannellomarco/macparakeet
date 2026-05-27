@@ -33,6 +33,16 @@ public protocol LLMServiceProtocol: Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> LLMFormatterResult
+
+    /// Day Journal analysis — sends OCR text + meeting context to the LLM
+    /// for batch analysis during journal recording.
+    func analyzeJournal(
+        ocrText: String,
+        runningSummary: String,
+        meetingContext: String,
+        pendingQuestions: String,
+        screenshotCount: Int
+    ) async throws -> LLMResult
 }
 
 public extension LLMServiceProtocol {
@@ -1181,6 +1191,65 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             }
             return String(substring)
         }
+    }
+
+    // MARK: - Day Journal Analysis
+
+    public func analyzeJournal(
+        ocrText: String,
+        runningSummary: String,
+        meetingContext: String,
+        pendingQuestions: String,
+        screenshotCount: Int
+    ) async throws -> LLMResult {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        let timeOfDay = formatter.string(from: Date())
+
+        let systemPrompt = """
+            You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen, and optionally meeting transcripts from the same day for cross-referencing.
+
+            Analyze the provided screen content and produce:
+            1. An updated running summary integrating new observations
+            2. New observations as bullet points
+            3. Pending clarification questions (be curious, not interrogative)
+
+            Cross-reference meeting transcripts with screen activity when available.
+            Don't over-narrate repetition — if the user stays in the same app, note it once.
+            Be privacy-aware: never reproduce sensitive content verbatim.
+            """
+
+        let userContent = """
+            Current time: \(timeOfDay)
+            Screenshots in this batch: \(screenshotCount)
+
+            Running day summary so far:
+            \(runningSummary)
+
+            Pending questions (not yet answered):
+            \(pendingQuestions)
+            \(meetingContext.isEmpty ? "" : "\nMeeting transcripts from today:\n\(meetingContext)")
+
+            New screen content to analyze:
+            \(ocrText)
+
+            Please produce the output in this format:
+            ---
+            ## Updated Running Summary
+            (concise narrative)
+
+            ## New Observations
+            - bullet list
+
+            ## Pending Questions
+            - bullet list
+            ---
+            """
+
+        return try await generatePromptResultDetailed(
+            transcript: userContent,
+            systemPrompt: systemPrompt
+        )
     }
 
     // MARK: - Prompt Templates
