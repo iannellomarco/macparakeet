@@ -272,7 +272,8 @@ final class AppEnvironment {
                 idleDetector: journalIdleDetector,
                 storageManager: journalStorageManager,
                 sessionRepo: journalSessionRepo,
-                screenshotRepo: journalScreenshotRepo
+                screenshotRepo: journalScreenshotRepo,
+                llmService: llmService
             )
         } else {
             journalService = nil

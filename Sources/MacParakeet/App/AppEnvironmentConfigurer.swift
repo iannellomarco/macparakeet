@@ -389,6 +389,11 @@ final class AppEnvironmentConfigurer {
             )
             journalChatViewModel.configure(llmService: hasLLMConfig ? env.llmService : nil)
             journalLibraryViewModel.configure(sessionRepo: env.journalSessionRepo)
+
+            // Auto-refresh journal library when a session is finalized
+            journalControlViewModel.onLibraryRefreshNeeded = { [weak journalLibraryViewModel] in
+                journalLibraryViewModel?.loadSessions()
+            }
         }
 
         return Runtime(

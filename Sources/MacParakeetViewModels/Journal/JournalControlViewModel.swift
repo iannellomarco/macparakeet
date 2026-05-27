@@ -14,6 +14,9 @@ public final class JournalControlViewModel {
     public var onReviewStarted: (@MainActor (UUID) -> Void)?
     public var onSessionFinalized: (@MainActor () -> Void)?
 
+    /// Call this from outside to trigger a library reload after finalization.
+    public var onLibraryRefreshNeeded: (@MainActor () -> Void)?
+
     private var journalService: JournalServiceProtocol?
     private var captureIntervalSecs: Int = 120
     private var analysisIntervalMins: Int = 30
@@ -94,6 +97,7 @@ public final class JournalControlViewModel {
             _ = try await service.finalizeSession(userNotes: userNotes)
             resetState()
             onSessionFinalized?()
+            onLibraryRefreshNeeded?()
             logger.info("Journal session finalized")
         } catch {
             logger.error("Failed to finalize session: \(error.localizedDescription)")

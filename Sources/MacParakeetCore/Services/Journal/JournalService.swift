@@ -37,6 +37,7 @@ public actor JournalService: JournalServiceProtocol {
     private let storageManager: JournalStorageManagerProtocol
     private let sessionRepo: JournalSessionRepositoryProtocol
     private let screenshotRepo: JournalScreenshotRepositoryProtocol
+    private let llmService: LLMServiceProtocol?
 
     public private(set) var currentState: JournalState = .idle
 
@@ -55,7 +56,8 @@ public actor JournalService: JournalServiceProtocol {
         idleDetector: JournalIdleDetectorProtocol,
         storageManager: JournalStorageManagerProtocol,
         sessionRepo: JournalSessionRepositoryProtocol,
-        screenshotRepo: JournalScreenshotRepositoryProtocol
+        screenshotRepo: JournalScreenshotRepositoryProtocol,
+        llmService: LLMServiceProtocol? = nil
     ) {
         self.captureService = captureService
         self.ocrService = ocrService
@@ -64,6 +66,7 @@ public actor JournalService: JournalServiceProtocol {
         self.storageManager = storageManager
         self.sessionRepo = sessionRepo
         self.screenshotRepo = screenshotRepo
+        self.llmService = llmService
     }
 
     // MARK: - Start
@@ -362,19 +365,55 @@ public actor JournalService: JournalServiceProtocol {
         session: JournalSession,
         userNotes: String
     ) async throws -> String {
+        // If we have a running summary, use the LLM to turn it into a proper narrative
+        if let runningSummary = session.runningSummary, !runningSummary.isEmpty,
+           let llm = llmService {
+            let prompt = """
+                Create a detailed, narrative description of the user's workday based on the observations below.
+
+                Running day observations:
+                \(runningSummary)
+
+                User's additional notes:
+                \(userNotes.isEmpty ? "(No additional notes provided.)" : userNotes)
+
+                The day was recorded on \(ISO8601DateFormatter().string(from: session.createdAt)).
+
+                Write a well-crafted journal entry that captures what the user did, what they worked on, decisions they made, and the overall arc of their day. Use a natural, reflective tone — like someone writing in their evening journal. Include specific apps, documents, and tasks mentioned in the observations. Don't add invented details or emotional states that aren't supported by the observations.
+
+                Format the output as a clear, readable narrative. Start with a brief overview sentence, then detail the day chronologically. No bullet points unless they naturally fit the storytelling.
+                """
+
+            do {
+                let result = try await llm.generatePromptResultDetailed(
+                    transcript: prompt,
+                    systemPrompt: nil
+                )
+                return result.output
+            } catch {
+                Self.logger.warning("LLM final snapshot failed, using running summary: \(error.localizedDescription)")
+                // Fall through to the concatenation approach
+            }
+        }
+
+        // Fallback: concatenate running summary + user notes
         if let runningSummary = session.runningSummary, !runningSummary.isEmpty {
             var finalText = "# Day Journal\n\n"
             let formatter = DateFormatter()
             formatter.dateStyle = .full
             finalText += "*\(formatter.string(from: session.createdAt))*\n\n"
             finalText += runningSummary
-
             if !userNotes.isEmpty {
                 finalText += "\n\n## Additional Notes\n\n\(userNotes)"
             }
             return finalText
         }
 
-        return "Day journal from \(ISO8601DateFormatter().string(from: session.createdAt))"
+        // Last resort: basic entry with user notes
+        if !userNotes.isEmpty {
+            return "# Day Journal\n\n*\(ISO8601DateFormatter().string(from: session.createdAt))*\n\n\(userNotes)"
+        }
+
+        return "# Day Journal\n\n*\(ISO8601DateFormatter().string(from: session.createdAt))*\n\nNo observations were recorded during this session. Make sure an AI provider is configured in Settings → AI Provider for the Day Journal analysis to work."
     }
 }

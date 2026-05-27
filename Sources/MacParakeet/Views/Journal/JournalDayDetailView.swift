@@ -37,6 +37,21 @@ struct JournalDayDetailView: View {
                         Text(snapshot)
                             .font(.body)
                     }
+                } else if let summary = session.runningSummary, !summary.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Day Summary")
+                            .font(.headline)
+                        Text(summary)
+                            .font(.body)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Day Summary")
+                            .font(.headline)
+                        Text("No observations were recorded. Make sure an AI provider is configured in Settings → AI Provider.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 // User notes
