@@ -50,6 +50,10 @@ final class AppEnvironmentConfigurer {
     private let transformsViewModel: TransformsViewModel
     private let mainWindowState: MainWindowState
     private let meetingPillViewModel: MeetingRecordingPillViewModel
+    private let journalControlViewModel: JournalControlViewModel
+    private let journalChatViewModel: JournalChatViewModel
+    private let journalLibraryViewModel: JournalLibraryViewModel
+    private let journalSettingsViewModel: JournalSettingsViewModel
     private weak var liveMeetingCoordinator: MeetingRecordingFlowCoordinator?
 
     init(
@@ -67,7 +71,11 @@ final class AppEnvironmentConfigurer {
         promptsViewModel: PromptsViewModel,
         transformsViewModel: TransformsViewModel,
         mainWindowState: MainWindowState,
-        meetingPillViewModel: MeetingRecordingPillViewModel
+        meetingPillViewModel: MeetingRecordingPillViewModel,
+        journalControlViewModel: JournalControlViewModel,
+        journalChatViewModel: JournalChatViewModel,
+        journalLibraryViewModel: JournalLibraryViewModel,
+        journalSettingsViewModel: JournalSettingsViewModel
     ) {
         self.transcriptionViewModel = transcriptionViewModel
         self.historyViewModel = historyViewModel
@@ -84,6 +92,10 @@ final class AppEnvironmentConfigurer {
         self.transformsViewModel = transformsViewModel
         self.mainWindowState = mainWindowState
         self.meetingPillViewModel = meetingPillViewModel
+        self.journalControlViewModel = journalControlViewModel
+        self.journalChatViewModel = journalChatViewModel
+        self.journalLibraryViewModel = journalLibraryViewModel
+        self.journalSettingsViewModel = journalSettingsViewModel
     }
 
     func configure(environment env: AppEnvironment, callbacks: Callbacks) -> Runtime {
@@ -363,6 +375,20 @@ final class AppEnvironmentConfigurer {
             calendarCoordinator = coordinator
         } else {
             calendarCoordinator = nil
+        }
+
+        // Day Journal wiring
+        if let journalService = env.journalService {
+            let journalSettingsVM = journalSettingsViewModel
+            journalControlViewModel.configure(
+                journalService: journalService,
+                captureIntervalSecs: journalSettingsVM.captureInterval.rawValue,
+                analysisIntervalMins: journalSettingsVM.analysisInterval.rawValue,
+                idleSkipEnabled: journalSettingsVM.idleSkipEnabled,
+                idleThresholdSecs: journalSettingsVM.idleThreshold.rawValue
+            )
+            journalChatViewModel.configure(llmService: hasLLMConfig ? env.llmService : nil)
+            journalLibraryViewModel.configure(sessionRepo: env.journalSessionRepo)
         }
 
         return Runtime(

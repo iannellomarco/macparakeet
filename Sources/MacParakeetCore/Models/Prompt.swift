@@ -28,6 +28,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
         // Keep the stored raw value as "summary" until the prompts table itself is migrated.
         case result = "summary"
         case transform
+        case journal
     }
 
     public init(
@@ -166,8 +167,11 @@ public struct Prompt: Codable, Identifiable, Sendable {
     /// - `0FCE9DDB-7E2D-4B1A-AE3E-6F7C9B2A4D11` — Polish
     /// - `1AD7C2B0-9C6F-4F0E-9C39-5E4D1F1D2A55` — Distill
     /// - `2BE8D3C1-4A7F-4EBD-8F12-7C9A1E0B3D44` — Decide
+    ///
+    /// Reserved Journal UUIDs (Day Journal feature, do not reuse):
+    /// - `3CF9E4D2-5B8F-4F1E-AE4F-8D0B2C3E4F55` — Daily Journal Analysis
     public static func builtInPrompts(now: Date = Date()) -> [Prompt] {
-        builtInResultPrompts(now: now) + builtInTransformPrompts(now: now)
+        builtInResultPrompts(now: now) + builtInTransformPrompts(now: now) + builtInJournalPrompts(now: now)
     }
 
     private static func builtInResultPrompts(now: Date) -> [Prompt] {
@@ -389,6 +393,60 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 ),
                 runningLabel: "Deciding…",
                 now: now
+            ),
+        ]
+    }
+
+    private static func builtInJournalPrompts(now: Date) -> [Prompt] {
+        [
+            Prompt(
+                id: UUID(uuidString: "3CF9E4D2-5B8F-4F1E-AE4F-8D0B2C3E4F55") ?? UUID(),
+                name: "Daily Journal Analysis",
+                content: """
+                    You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen.
+
+                    Context:
+                    - Current time: {{timeOfDay}}
+                    - Screenshots in this batch: {{screenshotCount}}
+
+                    Running day summary so far:
+                    {{runningSummary}}
+
+                    Pending questions you previously asked (not yet answered):
+                    {{pendingQuestions}}
+
+                    New screen content to analyze:
+                    {{ocrText}}
+
+                    Your task:
+
+                    1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work.
+
+                    2. **Note unanswered observations.** If you see something you don't fully understand — an unfamiliar app, a cryptic document title, an ambiguous context — note it as a pending question. Be curious, not interrogative. Example: "At 2:15pm you were editing a spreadsheet called 'Q3 Budget Projections'. Was that for the Finance review on Friday?"
+
+                    3. **Don't over-narrate repetition.** If the user stays in the same app doing the same thing for multiple batches, note it once and move on. Don't repeat "still in VS Code" every cycle.
+
+                    4. **Be privacy-aware.** The OCR text captures what's visible on screen. If you detect sensitive content (passwords, personal financial details, private messages), do NOT reproduce it verbatim. Instead, describe the activity generically (e.g., "was reading personal messages" not "was reading message from Sarah about her medical results").
+
+                    Output format:
+                    ---
+                    ## Updated Running Summary
+                    (concise narrative updated with new batch)
+
+                    ## New Observations
+                    - bullet list of specific new things noticed
+
+                    ## Pending Questions
+                    - bullet list of clarification questions (add new ones, keep old ones that are still unanswered, remove any that look resolved by this batch)
+                    ---
+                    """,
+                category: .journal,
+                isBuiltIn: true,
+                isVisible: true,
+                isAutoRun: false,
+                sortOrder: 200,
+                createdAt: now,
+                updatedAt: now
             ),
         ]
     }

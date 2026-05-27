@@ -115,6 +115,7 @@ struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
     let updater: SPUUpdater
+    let journalSettingsViewModel: JournalSettingsViewModel
     let transformHotkeys: [Prompt]
     let requestedTab: SettingsTab?
     let requestedTabRevision: Int
@@ -142,6 +143,7 @@ struct SettingsView: View {
         viewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
         updater: SPUUpdater,
+        journalSettingsViewModel: JournalSettingsViewModel = JournalSettingsViewModel(),
         transformHotkeys: [Prompt] = [],
         requestedTab: SettingsTab? = nil,
         requestedTabRevision: Int = 0,
@@ -151,6 +153,7 @@ struct SettingsView: View {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.updater = updater
+        self.journalSettingsViewModel = journalSettingsViewModel
         self.transformHotkeys = transformHotkeys
         self.requestedTab = requestedTab
         self.requestedTabRevision = requestedTabRevision
@@ -861,6 +864,11 @@ struct SettingsView: View {
                     // `calendarCard`. Calendar is meeting-only — folding it
                     // here removes a card without losing any controls.
                     meetingCalendarSection
+                }
+
+                // Day Journal — rendered below Meeting Recording when feature is enabled
+                if AppFeatures.journalingEnabled {
+                    JournalSettingsSection(viewModel: journalSettingsViewModel)
                 }
             }
         }

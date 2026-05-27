@@ -14,8 +14,10 @@ struct TranscribeView: View {
     var onRecordMeeting: () -> Void
     var onPauseToggleMeeting: (() -> Void)? = nil
     var onRefreshPermissions: () -> Void = {}
+    var journalControlViewModel: JournalControlViewModel
     @State private var showCancelConfirmation = false
     @State private var aiFormatterWarningMessage: String?
+    @State private var journalViewModel = JournalControlViewModel()
 
     /// Fixed footer attribution. Previously rotated through 19 randomly-picked
     /// quotes per view init; pinned to a single quote until the rotation
@@ -135,6 +137,11 @@ struct TranscribeView: View {
                             onPauseToggle: onPauseToggleMeeting
                         )
                         .padding(.horizontal, DesignSystem.Spacing.xl)
+                    }
+
+                    if AppFeatures.journalingEnabled {
+                        JournalControlView(viewModel: journalControlViewModel)
+                            .padding(.horizontal, DesignSystem.Spacing.xl)
                     }
 
                     // Error banner

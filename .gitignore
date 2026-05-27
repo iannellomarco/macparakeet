@@ -2,7 +2,7 @@
 MEMORY.md
 
 # Private journal (telemetry analyses, postmortems, field notes — agent-only)
-journal/
+/journal/
 
 # Claude Code
 .claude/

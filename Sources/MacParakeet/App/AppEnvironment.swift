@@ -16,12 +16,17 @@ final class AppEnvironment {
     let llmRunRepo: LLMRunRepository
     let transformHistoryRepo: TransformHistoryRepository
     let quickPromptRepo: QuickPromptRepository
+    let journalSessionRepo: JournalSessionRepository
+    let journalScreenshotRepo: JournalScreenshotRepository
+    let journalAnalysisRunRepo: JournalAnalysisRunRepository
+    let journalQuestionRepo: JournalQuestionRepository
     let sttRuntime: STTRuntime
     let sttScheduler: STTScheduler
     let sharedMicStream: SharedMicrophoneStream
     let audioProcessor: AudioProcessor
     let meetingRecordingService: MeetingRecordingService
     let meetingRecordingRecoveryService: MeetingRecordingRecoveryService
+    let journalService: JournalService?
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
     let youtubeDownloader: YouTubeDownloader
@@ -55,6 +60,10 @@ final class AppEnvironment {
         llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
+        journalSessionRepo = JournalSessionRepository(dbQueue: databaseManager.dbQueue)
+        journalScreenshotRepo = JournalScreenshotRepository(dbQueue: databaseManager.dbQueue)
+        journalAnalysisRunRepo = JournalAnalysisRunRepository(dbQueue: databaseManager.dbQueue)
+        journalQuestionRepo = JournalQuestionRepository(dbQueue: databaseManager.dbQueue)
 
         // Services
         let runtimePreferences = UserDefaultsAppRuntimePreferences()
@@ -240,6 +249,34 @@ final class AppEnvironment {
             transcriptionService: transcriptionService,
             transcriptionRepo: transcriptionRepo
         )
+
+        // Day Journal service — conditionally created when feature flag is on
+        if AppFeatures.journalingEnabled {
+            let journalCaptureService = ScreenshotCaptureService(permissionService: permissionService)
+            let journalOCRService = ScreenshotOCRService()
+            let journalIdleDetector = JournalIdleDetector()
+            let journalStorageManager = JournalStorageManager()
+            let journalQuestionTracker = JournalQuestionTracker(repository: journalQuestionRepo)
+            let journalBatchAnalyzer = JournalBatchAnalyzer(
+                llmService: llmService,
+                screenshotRepo: journalScreenshotRepo,
+                analysisRunRepo: journalAnalysisRunRepo,
+                questionTracker: journalQuestionTracker,
+                sessionRepo: journalSessionRepo,
+                questionRepo: journalQuestionRepo
+            )
+            journalService = JournalService(
+                captureService: journalCaptureService,
+                ocrService: journalOCRService,
+                batchAnalyzer: journalBatchAnalyzer,
+                idleDetector: journalIdleDetector,
+                storageManager: journalStorageManager,
+                sessionRepo: journalSessionRepo,
+                screenshotRepo: journalScreenshotRepo
+            )
+        } else {
+            journalService = nil
+        }
 
         derivedFieldsBackfill = DerivedFieldsBackfillService(dbQueue: databaseManager.dbQueue)
         derivedFieldsBackfill.runInBackground()

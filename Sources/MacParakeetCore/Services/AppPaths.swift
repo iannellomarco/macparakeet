@@ -80,10 +80,15 @@ public enum AppPaths {
         "\(NSTemporaryDirectory())macparakeet"
     }
 
+    /// Screenshot storage for Day Journal
+    public static var journalDir: String {
+        "\(appSupportDir)/journal"
+    }
+
     /// Ensure all required directories exist
     public static func ensureDirectories() throws {
         let fm = FileManager.default
-        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, meetingRecordingsDir, binDir, whisperModelsDir, thumbnailsDir, logsDir, tempDir] {
+        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, meetingRecordingsDir, journalDir, binDir, whisperModelsDir, thumbnailsDir, logsDir, tempDir] {
             if !fm.fileExists(atPath: dir) {
                 try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
             }

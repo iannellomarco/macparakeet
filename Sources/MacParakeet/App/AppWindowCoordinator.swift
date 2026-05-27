@@ -23,6 +23,10 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let libraryViewModel: TranscriptionLibraryViewModel
     private let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     private let meetingPillViewModel: MeetingRecordingPillViewModel
+    private let journalControlViewModel: JournalControlViewModel
+    private let journalChatViewModel: JournalChatViewModel
+    private let journalLibraryViewModel: JournalLibraryViewModel
+    private let journalSettingsViewModel: JournalSettingsViewModel
     private let updaterController: SPUStandardUpdaterController
     private let onRecordMeeting: () -> Void
     private let onRecordMeetingFromWorkspace: () -> Void
@@ -51,6 +55,10 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         libraryViewModel: TranscriptionLibraryViewModel,
         meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel,
         meetingPillViewModel: MeetingRecordingPillViewModel,
+        journalControlViewModel: JournalControlViewModel,
+        journalChatViewModel: JournalChatViewModel,
+        journalLibraryViewModel: JournalLibraryViewModel,
+        journalSettingsViewModel: JournalSettingsViewModel,
         updaterController: SPUStandardUpdaterController,
         onRecordMeeting: @escaping () -> Void,
         onRecordMeetingFromWorkspace: @escaping () -> Void,
@@ -76,6 +84,10 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.libraryViewModel = libraryViewModel
         self.meetingsWorkspaceViewModel = meetingsWorkspaceViewModel
         self.meetingPillViewModel = meetingPillViewModel
+        self.journalControlViewModel = journalControlViewModel
+        self.journalChatViewModel = journalChatViewModel
+        self.journalLibraryViewModel = journalLibraryViewModel
+        self.journalSettingsViewModel = journalSettingsViewModel
         self.updaterController = updaterController
         self.onRecordMeeting = onRecordMeeting
         self.onRecordMeetingFromWorkspace = onRecordMeetingFromWorkspace
@@ -188,6 +200,9 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             libraryViewModel: libraryViewModel,
             meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
             meetingPillViewModel: meetingPillViewModel,
+            journalControlViewModel: journalControlViewModel,
+            journalLibraryViewModel: journalLibraryViewModel,
+            journalSettingsViewModel: journalSettingsViewModel,
             updater: updaterController.updater,
             onRecordMeeting: onRecordMeeting,
             onRecordMeetingFromWorkspace: onRecordMeetingFromWorkspace,

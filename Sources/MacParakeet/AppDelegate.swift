@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `TransformsHotkeyRegistry` + dispatch from registered hotkeys to the
     /// `TransformExecutor` pipeline. Gated on `AppFeatures.transformsEnabled`.
     private var transformsCoordinator: TransformsCoordinator?
+    private var journalFlowCoordinator: JournalFlowCoordinator?
     private var hasPresentedHotkeyUnavailableAlert = false
     private var hasPresentedHotkeyConflictAlert = false
     private var environmentSetupTask: Task<Void, Never>?
@@ -72,6 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let promptResultsViewModel = PromptResultsViewModel()
     private let promptsViewModel = PromptsViewModel()
     private let transformsViewModel = TransformsViewModel()
+    private let journalControlViewModel = JournalControlViewModel()
+    private let journalChatViewModel = JournalChatViewModel()
+    private let journalLibraryViewModel = JournalLibraryViewModel()
+    private let journalSettingsViewModel = JournalSettingsViewModel()
     private let mainWindowState = MainWindowState()
     /// Long-lived companion for the meeting recording pill + Transcribe-tab tile.
     /// `MeetingRecordingFlowCoordinator` writes state into it; both the floating
@@ -108,7 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         promptsViewModel: promptsViewModel,
         transformsViewModel: transformsViewModel,
         mainWindowState: mainWindowState,
-        meetingPillViewModel: meetingPillViewModel
+        meetingPillViewModel: meetingPillViewModel,
+        journalControlViewModel: journalControlViewModel,
+        journalChatViewModel: journalChatViewModel,
+        journalLibraryViewModel: journalLibraryViewModel,
+        journalSettingsViewModel: journalSettingsViewModel
     )
 
     /// Drives the live, no-STT hotkey rehearsal on the onboarding "Learn the
@@ -193,6 +202,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         libraryViewModel: libraryViewModel,
         meetingsWorkspaceViewModel: meetingsWorkspaceViewModel,
         meetingPillViewModel: meetingPillViewModel,
+        journalControlViewModel: journalControlViewModel,
+        journalChatViewModel: journalChatViewModel,
+        journalLibraryViewModel: journalLibraryViewModel,
+        journalSettingsViewModel: journalSettingsViewModel,
         updaterController: updaterController,
         onRecordMeeting: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: true)
@@ -467,6 +480,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
         meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
+
+        // Day Journal — wire chat panel when journaling is enabled
+        if appEnvironment?.journalService != nil {
+            journalFlowCoordinator = JournalFlowCoordinator(
+                viewModel: journalControlViewModel,
+                chatViewModel: journalChatViewModel,
+                sessionRepo: env.journalSessionRepo,
+                questionRepo: env.journalQuestionRepo
+            )
+        }
 
         // Transforms spike — registers Opt+Ctrl+1 only when the feature flag
         // is on (see `AppFeatures.transformsSpikeEnabled`). Always-created so

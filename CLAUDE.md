@@ -126,6 +126,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-020 | Live meeting notepad + memo-steered summaries (implemented) | `spec/adr/020-live-meeting-notepad-and-memo-summaries.md` |
 | ADR-021 | WhisperKit as optional multilingual STT engine (implemented) | `spec/adr/021-whisperkit-multilingual-stt.md` |
 | ADR-022 | Transforms — system-wide LLM rewrites on selected text (Phase 2 productized; enabled on `main`) | `spec/adr/022-transforms-system-wide-rewrite.md` |
+| ADR-023 | Day Journal — periodic screenshot capture + AI-driven day narrative (opt-in, text-first, BYO-provider) | `spec/adr/023-day-journal-screenshot-second-brain.md` |
 
 > Historical/dormant ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). Current public builds are free/GPL-3.0 and unlocked. The old LemonSqueezy/trial entitlement plumbing is intentionally retained as future-option code for GPL-compatible official paid distribution/support; do not remove it as dead code without explicit owner direction and an ADR/spec update.
 
@@ -140,6 +141,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - **v0.5** Data, UI & Prompts -- Private dictation, multi-conversation chat, favorites, video player, split-pane detail, library grid, prompt library, multi-summary, open-source release
 - **v0.6** Meeting Recording + Multilingual STT + Transforms -- ScreenCaptureKit system audio + raw AVAudioEngine mic capture by default, retained opt-in VPIO plumbing, fragmented MP4 source files + crash recovery (ADR-019), transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + Notes/Transcript/Ask meeting panel, customizable Ask quick prompts, library integration, prompt/result/chat support (ADR-014), live notepad + memo-steered summaries with `{{userNotes}}` template variable + slash commands (ADR-020), optional WhisperKit engine support for non-Parakeet languages, persisted speech-engine preference, Whisper language picker/default, CLI `transcribe --engine parakeet|whisper --language`, Whisper model download path, engine pinning for active meeting sessions and crash recovery (ADR-021), and productized system-wide LLM Transforms with `Polish`, `Distill`, and `Decide` built-ins (ADR-022).
 - **Calendar auto-start** -- Implemented (ADR-017 Phases 1 + 2) and enabled via `AppFeatures.calendarEnabled = true` after the post-#318 reliability hardening. Defaults to mode `.off` (opt-in); Phase 3 (late-join/retro-link) remains proposed.
+- **Day Journal** -- Implemented (ADR-023). Periodic screenshot capture + on-device OCR + AI-driven day narrative. Opt-in via Settings. Uses existing BYO-provider LLM pipeline. `AppFeatures.journalingEnabled = true`, defaults to opt-in. Screenshots at configurable intervals (2 min default), batch AI analysis (30 min default), end-of-day chat panel for review and finalization.
 
 ## Key Patterns
 
@@ -500,7 +502,7 @@ open Package.swift  # Select MacParakeet scheme
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Settings | `~/Library/Preferences/com.macparakeet.plist` |
 | Temp audio | `$TMPDIR/macparakeet/` |
-| Logs | `~/Library/Logs/MacParakeet/` |
+| Journal screenshots | `~/Library/Application Support/MacParakeet/journal/` |
 
 ## Security and Privacy
 

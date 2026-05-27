@@ -6,6 +6,7 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
+    case journal = "Journal"
     case dictations = "Dictations"
     case meetings = "Meetings"
     case transforms = "Transforms"
@@ -21,6 +22,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
+        case .journal: return "camera.viewfinder"
         case .dictations: return "clock.arrow.circlepath"
         case .transforms: return "wand.and.stars"
         case .vocabulary: return "book.fill"
@@ -32,11 +34,15 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 
     /// Primary features — the core things users do. Library remains the
     /// universal archive; Meetings is the workflow space for live/upcoming
-    /// and saved meeting work.
+    /// and saved meeting work. Journal is inserted at runtime when
+    /// `AppFeatures.journalingEnabled == true`.
     static var primaryItems: [SidebarItem] {
         var items: [SidebarItem] = [.transcribe, .library, .dictations]
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
+        }
+        if AppFeatures.journalingEnabled {
+            items.insert(.journal, at: 2)
         }
         return items
     }
@@ -74,6 +80,9 @@ struct MainWindowView: View {
     let libraryViewModel: TranscriptionLibraryViewModel
     let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
+    let journalControlViewModel: JournalControlViewModel
+    let journalLibraryViewModel: JournalLibraryViewModel
+    let journalSettingsViewModel: JournalSettingsViewModel
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
     let onRecordMeetingFromWorkspace: () -> Void
@@ -124,7 +133,8 @@ struct MainWindowView: View {
                             showingProgressDetail: $state.showingProgressDetail,
                             onRecordMeeting: onRecordMeeting,
                             onPauseToggleMeeting: onPauseToggleMeeting,
-                            onRefreshPermissions: settingsViewModel.refreshPermissions
+                            onRefreshPermissions: settingsViewModel.refreshPermissions,
+                            journalControlViewModel: journalControlViewModel
                         )
                     case .meetings:
                         MeetingsView(
@@ -181,6 +191,10 @@ struct MainWindowView: View {
                                 transcriptionViewModel.currentTranscription = transcription
                             }
                         }
+                    case .journal:
+                        JournalLibraryView(
+                            viewModel: journalLibraryViewModel
+                        )
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
                     case .transforms:
@@ -256,6 +270,7 @@ struct MainWindowView: View {
                             viewModel: settingsViewModel,
                             llmSettingsViewModel: llmSettingsViewModel,
                             updater: updater,
+                            journalSettingsViewModel: journalSettingsViewModel,
                             transformHotkeys: transformsViewModel.transforms,
                             requestedTab: state.requestedSettingsTab,
                             requestedTabRevision: state.requestedSettingsTabRevision,

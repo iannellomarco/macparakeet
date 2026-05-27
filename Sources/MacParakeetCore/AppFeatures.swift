@@ -44,4 +44,10 @@ public enum AppFeatures {
     /// Enabled once the website telemetry allowlist accepts
     /// `transform_executed` / `transform_failed` (ADR-022 §9).
     public static let transformsEnabled: Bool = true
+
+    /// Day Journal — screenshot capture + AI analysis (v0.20). When `false`,
+    /// all journal entry points are hidden: menu bar item, Transcribe tile,
+    /// sidebar entry, settings section. Data model, services, and tests
+    /// remain intact. Defaults to `false` (strictly opt-in).
+    public static let journalingEnabled: Bool = true
 }
