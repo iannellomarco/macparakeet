@@ -1,24 +1,21 @@
-# MacParakeet Day Journal v0.6.0-journal.4
+# MacParakeet Day Journal v0.6.0-journal.5
 
-## Changes in v0.6.0-journal.4
-
-- **Dedicated `analyzeJournal` LLM method** — the journal pipeline now uses a purpose-built method on `LLMServiceProtocol` instead of abusing the transcript summary API. Cleaner separation, proper system/user prompt structure.
-- **Fork update channel** — auto-updates now point to this fork's appcast instead of upstream MacParakeet. Set via `SU_FEED_URL` in the build.
-- **All v0.6.0-journal.3 fixes included** — clickable journal entries, calendar navigation, loading indicators, meeting context integration
+## Changes
+- **Public repo** — repository is now public at [github.com/iannellomarco/macparakeet-dayjournal](https://github.com/iannellomarco/macparakeet-dayjournal)
+- **GitHub Pages update channel** — auto-updates served from [iannellomarco.github.io/macparakeet-dayjournal/appcast.xml](https://iannellomarco.github.io/macparakeet-dayjournal/appcast.xml)
+- **Dedicated `analyzeJournal` LLM method** on `LLMServiceProtocol`
+- **Clickable journal entries** with calendar date navigation
+- **Meeting transcript integration** — same-day meeting transcripts cross-referenced with screen activity
+- **Loading indicators** during computing transitions
 
 ## Verify
-
 ```bash
-# SHA-256
 shasum -a 256 MacParakeet.dmg
-# ef84f736e9641b7cc9994133905aca172a34caf08bb59fefd549ecdde5ada6a1
-
-# Gatekeeper
+# fe6eb13668c28b3855342b460ec4d4920a77be1b79e275a414b4c594cf6025c9
 spctl --assess --verbose --type install MacParakeet.dmg
 ```
 
 ## Requirements
-
 - macOS 14.2+, Apple Silicon only
 - Screen Recording permission
 - AI provider configured in Settings

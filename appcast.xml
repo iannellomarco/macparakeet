@@ -6,17 +6,17 @@
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet-dayjournal/</link>
     <item>
-      <title>MacParakeet Day Journal v0.6.0-journal.4</title>
-      <description>Dedicated analyzeJournal LLM method, clickable journal entries, calendar navigation, loading indicators, meeting context integration, fork update channel</description>
-      <pubDate>Wed, 27 May 2026 14:05:00 +0000</pubDate>
-      <sparkle:version>0.6.0-journal.4</sparkle:version>
-      <sparkle:shortVersionString>0.6.0-journal.4</sparkle:shortVersionString>
+      <title>MacParakeet Day Journal v0.6.0-journal.5</title>
+      <description>Public repo + GitHub Pages update channel. Dedicated analyzeJournal LLM method. Clickable journal entries with calendar navigation. Meeting transcript integration. Loading indicators.</description>
+      <pubDate>Wed, 27 May 2026 19:20:00 +0000</pubDate>
+      <sparkle:version>0.6.0-journal.5</sparkle:version>
+      <sparkle:shortVersionString>0.6.0-journal.5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.4/MacParakeet-0.6.0-journal.4.dmg"
-        sparkle:version="0.6.0-journal.4"
-        sparkle:shortVersionString="0.6.0-journal.4"
-        length="132950000"
+        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.5/MacParakeet-0.6.0-journal.5.dmg"
+        sparkle:version="0.6.0-journal.5"
+        sparkle:shortVersionString="0.6.0-journal.5"
+        length="132970000"
         type="application/x-apple-diskimage"
       />
     </item>
