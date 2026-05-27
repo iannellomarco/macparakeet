@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct JournalSession: Codable, Identifiable, Sendable {
+public struct JournalSession: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var createdAt: Date
     public var endedAt: Date?

@@ -16,6 +16,7 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
     private let questionTracker: JournalQuestionTrackerProtocol
     private let sessionRepo: JournalSessionRepositoryProtocol
     private let questionRepo: JournalQuestionRepositoryProtocol
+    private let transcriptionRepo: TranscriptionRepositoryProtocol?
 
     private static let logger = Logger(
         subsystem: "com.macparakeet.core",
@@ -33,7 +34,8 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         analysisRunRepo: JournalAnalysisRunRepositoryProtocol,
         questionTracker: JournalQuestionTrackerProtocol,
         sessionRepo: JournalSessionRepositoryProtocol,
-        questionRepo: JournalQuestionRepositoryProtocol
+        questionRepo: JournalQuestionRepositoryProtocol,
+        transcriptionRepo: TranscriptionRepositoryProtocol? = nil
     ) {
         self.llmService = llmService
         self.screenshotRepo = screenshotRepo
@@ -41,6 +43,7 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         self.questionTracker = questionTracker
         self.sessionRepo = sessionRepo
         self.questionRepo = questionRepo
+        self.transcriptionRepo = transcriptionRepo
     }
 
     public func analyzeBatch(sessionId: UUID) async throws -> JournalAnalysisRun {
@@ -79,21 +82,28 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         let pendingQuestions = try questionRepo.fetchPending(sessionId: sessionId)
         let questionsText = formatPendingQuestions(pendingQuestions)
 
+        // 5b. Fetch same-day meeting transcripts for richer context
+        let meetingContext = fetchSameDayMeetings(session: session)
+
         // 6. Render the journal prompt with template variables
         let renderedPrompt = renderJournalPrompt(
             ocrText: ocrText,
             runningSummary: session.runningSummary ?? "(No observations yet — this is the first analysis of the day.)",
             pendingQuestions: questionsText,
+            meetingContext: meetingContext,
             screenshotCount: screenshots.count
         )
 
-        // 7. Send to LLM
+        // 7. Send to LLM — split into system prompt (instructions) and user content
+        let systemPrompt = renderedPrompt
+        let userContent = "Please analyze the screen content and meeting transcripts above and produce the updated running summary, new observations, and pending questions in the specified format."
+        let fullTranscript = "\(systemPrompt)\n\n---\n\n\(userContent)"
         let analysisText: String
         let latencyMs: Int
         do {
             let llmResult = try await llmService.generatePromptResultDetailed(
-                transcript: renderedPrompt,
-                systemPrompt: nil
+                transcript: fullTranscript,
+                systemPrompt: systemPrompt
             )
             analysisText = llmResult.output
             latencyMs = llmResult.latencyMs
@@ -195,14 +205,14 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         ocrText: String,
         runningSummary: String,
         pendingQuestions: String,
+        meetingContext: String,
         screenshotCount: Int
     ) -> String {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         let timeOfDay = formatter.string(from: Date())
 
-        // Use the built-in prompt template, substituting variables inline
-        let prompt = """
+        var prompt = """
             You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen.
 
             Context:
@@ -214,13 +224,24 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
 
             Pending questions you previously asked (not yet answered):
             \(pendingQuestions)
+            """
+
+        if !meetingContext.isEmpty {
+            prompt += """
+
+            Meeting transcripts from today (for cross-referencing with screen activity):
+            \(meetingContext)
+            """
+        }
+
+        prompt += """
 
             New screen content to analyze:
             \(ocrText)
 
             Your task:
 
-            1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work.
+            1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work. If meeting transcripts are available, cross-reference them with screen activity — e.g., "At 2pm you were editing the Q3 budget in Numbers, which aligns with the 1:30pm finance meeting where budget targets were discussed."
 
             2. **Note unanswered observations.** If you see something you don't fully understand — an unfamiliar app, a cryptic document title, an ambiguous context — note it as a pending question. Be curious, not interrogative. Example: "At 2:15pm you were editing a spreadsheet called 'Q3 Budget Projections'. Was that for the Finance review on Friday?"
 
@@ -264,6 +285,47 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return content.isEmpty ? nil : content
+    }
+
+    // MARK: - Meeting transcripts
+
+    private func fetchSameDayMeetings(session: JournalSession) -> String {
+        guard let repo = transcriptionRepo else { return "" }
+
+        let calendar = Calendar.current
+        let sessionDay = calendar.startOfDay(for: session.createdAt)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: sessionDay) ?? session.createdAt
+
+        do {
+            let allTranscriptions = try repo.fetchAll(limit: nil)
+            let todayMeetings = allTranscriptions.filter {
+                $0.sourceType == .meeting
+                    && $0.status == .completed
+                    && $0.createdAt >= sessionDay
+                    && $0.createdAt < nextDay
+                    && ($0.rawTranscript ?? $0.cleanTranscript)?.isEmpty == false
+            }
+
+            guard !todayMeetings.isEmpty else { return "" }
+
+            var context = ""
+            for (i, meeting) in todayMeetings.enumerated() {
+                let formatter = DateFormatter()
+                formatter.timeStyle = .short
+                let time = formatter.string(from: meeting.createdAt)
+                let title = meeting.fileName
+                let transcript = meeting.cleanTranscript ?? meeting.rawTranscript ?? ""
+                // Cap each meeting at ~3000 chars to avoid blowing the context budget
+                let capped = String(transcript.prefix(3000))
+                let suffix = transcript.count > 3000 ? "…" : ""
+
+                context += "--- Meeting \(i + 1): \"\(title)\" at \(time) ---\n\(capped)\(suffix)\n\n"
+            }
+            return context
+        } catch {
+            Self.logger.warning("Failed to fetch same-day meetings: \(error.localizedDescription)")
+            return ""
+        }
     }
 }
 

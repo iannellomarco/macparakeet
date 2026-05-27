@@ -38,6 +38,7 @@ public actor JournalService: JournalServiceProtocol {
     private let sessionRepo: JournalSessionRepositoryProtocol
     private let screenshotRepo: JournalScreenshotRepositoryProtocol
     private let llmService: LLMServiceProtocol?
+    private let transcriptionRepo: TranscriptionRepositoryProtocol?
 
     public private(set) var currentState: JournalState = .idle
 
@@ -57,7 +58,8 @@ public actor JournalService: JournalServiceProtocol {
         storageManager: JournalStorageManagerProtocol,
         sessionRepo: JournalSessionRepositoryProtocol,
         screenshotRepo: JournalScreenshotRepositoryProtocol,
-        llmService: LLMServiceProtocol? = nil
+        llmService: LLMServiceProtocol? = nil,
+        transcriptionRepo: TranscriptionRepositoryProtocol? = nil
     ) {
         self.captureService = captureService
         self.ocrService = ocrService
@@ -67,6 +69,7 @@ public actor JournalService: JournalServiceProtocol {
         self.sessionRepo = sessionRepo
         self.screenshotRepo = screenshotRepo
         self.llmService = llmService
+        self.transcriptionRepo = transcriptionRepo
     }
 
     // MARK: - Start
@@ -365,21 +368,35 @@ public actor JournalService: JournalServiceProtocol {
         session: JournalSession,
         userNotes: String
     ) async throws -> String {
+        // Fetch same-day meeting transcripts
+        let meetingContext = fetchMeetingContext(for: session)
+
         // If we have a running summary, use the LLM to turn it into a proper narrative
         if let runningSummary = session.runningSummary, !runningSummary.isEmpty,
            let llm = llmService {
-            let prompt = """
+            var prompt = """
                 Create a detailed, narrative description of the user's workday based on the observations below.
 
                 Running day observations:
                 \(runningSummary)
+                """
+
+            if !meetingContext.isEmpty {
+                prompt += """
+
+                Meeting transcripts from today (for cross-referencing):
+                \(meetingContext)
+                """
+            }
+
+            prompt += """
 
                 User's additional notes:
                 \(userNotes.isEmpty ? "(No additional notes provided.)" : userNotes)
 
                 The day was recorded on \(ISO8601DateFormatter().string(from: session.createdAt)).
 
-                Write a well-crafted journal entry that captures what the user did, what they worked on, decisions they made, and the overall arc of their day. Use a natural, reflective tone — like someone writing in their evening journal. Include specific apps, documents, and tasks mentioned in the observations. Don't add invented details or emotional states that aren't supported by the observations.
+                Write a well-crafted journal entry that captures what the user did, what they worked on, decisions they made, and the overall arc of their day. Use a natural, reflective tone — like someone writing in their evening journal. Include specific apps, documents, and tasks mentioned in the observations. If meeting transcripts are available, cross-reference decisions and topics discussed in meetings with what the user was doing on screen. Don't add invented details or emotional states that aren't supported by the observations.
 
                 Format the output as a clear, readable narrative. Start with a brief overview sentence, then detail the day chronologically. No bullet points unless they naturally fit the storytelling.
                 """
@@ -387,12 +404,11 @@ public actor JournalService: JournalServiceProtocol {
             do {
                 let result = try await llm.generatePromptResultDetailed(
                     transcript: prompt,
-                    systemPrompt: nil
+                    systemPrompt: "You are a personal journal writer. Write a reflective end-of-day journal entry based on the observations and meeting transcripts provided."
                 )
                 return result.output
             } catch {
                 Self.logger.warning("LLM final snapshot failed, using running summary: \(error.localizedDescription)")
-                // Fall through to the concatenation approach
             }
         }
 
@@ -415,5 +431,44 @@ public actor JournalService: JournalServiceProtocol {
         }
 
         return "# Day Journal\n\n*\(ISO8601DateFormatter().string(from: session.createdAt))*\n\nNo observations were recorded during this session. Make sure an AI provider is configured in Settings → AI Provider for the Day Journal analysis to work."
+    }
+
+    // MARK: - Meeting context
+
+    private func fetchMeetingContext(for session: JournalSession) -> String {
+        guard let repo = transcriptionRepo else { return "" }
+
+        let calendar = Calendar.current
+        let sessionDay = calendar.startOfDay(for: session.createdAt)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: sessionDay) ?? session.createdAt
+
+        do {
+            let allTranscriptions = try repo.fetchAll(limit: nil)
+            let todayMeetings = allTranscriptions.filter {
+                $0.sourceType == .meeting
+                    && $0.status == .completed
+                    && $0.createdAt >= sessionDay
+                    && $0.createdAt < nextDay
+                    && ($0.rawTranscript ?? $0.cleanTranscript)?.isEmpty == false
+            }
+
+            guard !todayMeetings.isEmpty else { return "" }
+
+            var context = ""
+            for (i, meeting) in todayMeetings.enumerated() {
+                let formatter = DateFormatter()
+                formatter.timeStyle = .short
+                let time = formatter.string(from: meeting.createdAt)
+                let title = meeting.fileName
+                let transcript = meeting.cleanTranscript ?? meeting.rawTranscript ?? ""
+                let capped = String(transcript.prefix(3000))
+                let suffix = transcript.count > 3000 ? "…" : ""
+                context += "--- Meeting \(i + 1): \"\(title)\" at \(time) ---\n\(capped)\(suffix)\n\n"
+            }
+            return context
+        } catch {
+            Self.logger.warning("Failed to fetch same-day meetings: \(error.localizedDescription)")
+            return ""
+        }
     }
 }

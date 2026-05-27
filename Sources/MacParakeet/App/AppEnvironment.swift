@@ -263,7 +263,8 @@ final class AppEnvironment {
                 analysisRunRepo: journalAnalysisRunRepo,
                 questionTracker: journalQuestionTracker,
                 sessionRepo: journalSessionRepo,
-                questionRepo: journalQuestionRepo
+                questionRepo: journalQuestionRepo,
+                transcriptionRepo: transcriptionRepo
             )
             journalService = JournalService(
                 captureService: journalCaptureService,
@@ -273,7 +274,8 @@ final class AppEnvironment {
                 storageManager: journalStorageManager,
                 sessionRepo: journalSessionRepo,
                 screenshotRepo: journalScreenshotRepo,
-                llmService: llmService
+                llmService: llmService,
+                transcriptionRepo: transcriptionRepo
             )
         } else {
             journalService = nil

@@ -403,7 +403,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 id: UUID(uuidString: "3CF9E4D2-5B8F-4F1E-AE4F-8D0B2C3E4F55") ?? UUID(),
                 name: "Daily Journal Analysis",
                 content: """
-                    You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen.
+                    You are a thoughtful workday observer helping the user build a "second brain" journal of their day. You receive OCR-extracted text from periodic screenshots of the user's screen, and optionally meeting transcripts from the same day for cross-referencing.
 
                     Context:
                     - Current time: {{timeOfDay}}
@@ -420,7 +420,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     Your task:
 
-                    1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work.
+                    1. **Update the running summary.** Integrate the new observations into the running day narrative. Keep it concise but detailed — mention specific apps, documents, tasks the user appears to be working on. Use past tense for completed observations, present for ongoing work. If meeting transcripts are provided, cross-reference them with screen activity — e.g., "At 2pm you were editing the Q3 budget, which aligns with the 1:30pm finance meeting where targets were discussed."
 
                     2. **Note unanswered observations.** If you see something you don't fully understand — an unfamiliar app, a cryptic document title, an ambiguous context — note it as a pending question. Be curious, not interrogative. Example: "At 2:15pm you were editing a spreadsheet called 'Q3 Budget Projections'. Was that for the Finance review on Friday?"
 

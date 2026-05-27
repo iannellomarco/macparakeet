@@ -6,6 +6,7 @@ import OSLog
 public final class JournalControlViewModel {
     public var isJournaling: Bool = false
     public var isReviewing: Bool = false
+    public var isComputing: Bool = false
     public var activeSessionId: UUID?
     public var screenshotCount: Int = 0
     public var lastAnalysisAt: Date?
@@ -68,14 +69,17 @@ public final class JournalControlViewModel {
 
     public func stopJournaling() async {
         guard let service = journalService, isJournaling else { return }
+        isComputing = true
         do {
             let session = try await service.stopSession()
             isJournaling = false
+            isComputing = false
             isReviewing = true
             stopElapsedTimer()
             onReviewStarted?(session.id)
             logger.info("Journaling stopped, entering review")
         } catch {
+            isComputing = false
             logger.error("Failed to stop journaling: \(error.localizedDescription)")
         }
     }
@@ -93,13 +97,16 @@ public final class JournalControlViewModel {
 
     public func finalizeSession(userNotes: String) async {
         guard let service = journalService, isReviewing else { return }
+        isComputing = true
         do {
             _ = try await service.finalizeSession(userNotes: userNotes)
+            isComputing = false
             resetState()
             onSessionFinalized?()
             onLibraryRefreshNeeded?()
             logger.info("Journal session finalized")
         } catch {
+            isComputing = false
             logger.error("Failed to finalize session: \(error.localizedDescription)")
         }
     }
@@ -107,6 +114,7 @@ public final class JournalControlViewModel {
     private func resetState() {
         isJournaling = false
         isReviewing = false
+        isComputing = false
         activeSessionId = nil
         screenshotCount = 0
         elapsedSeconds = 0

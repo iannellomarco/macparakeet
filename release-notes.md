@@ -1,8 +1,15 @@
-# MacParakeet Day Journal v0.6.0-journal.1
+# MacParakeet Day Journal v0.6.0-journal.2
 
-Fork of [moona3k/macparakeet](https://github.com/moona3k/macparakeet) with the **Day Journal** feature — a fourth capture mode for building a "second brain" from your workday.
+Fork of [moona3k/macparakeet](https://github.com/moona3k/macparakeet) with the **Day Journal** feature.
 
-## What's New
+## Changes in v0.6.0-journal.2 (hotfix)
+
+- **LLM-powered final snapshot** — the "Save Day Snapshot" step now calls your AI provider to generate a proper narrative from the day's observations, instead of just concatenating raw text
+- **Library auto-refresh** — journal library now updates immediately after saving a session
+- **Empty-state guidance** — when no AI provider is configured, the journal entry now tells you "Make sure an AI provider is configured in Settings → AI Provider" instead of showing a blank page
+- **Running summary fallback** — if the final snapshot is empty, the detail view now shows the raw running summary so you always see something
+
+## What's New (v0.6.0-journal.1)
 
 ### Day Journal (ADR-023)
 - **Periodic screenshot capture** at configurable intervals (30s–10min), with idle detection
@@ -15,27 +22,15 @@ Fork of [moona3k/macparakeet](https://github.com/moona3k/macparakeet) with the *
 - **Text-first privacy** — only OCR-extracted text goes to your AI provider, screenshots stay on-device
 - **BYO-provider** — works with all existing LLM providers (cloud, local Ollama/LM Studio, CLI tools)
 
-### Settings
-- Screenshot interval, analysis interval, idle skip toggle, storage retention (7d/30d/90d/forever)
-- Screen Recording permission management
-
-## Technical Details
-
-- 4 new database tables in the existing `macparakeet.db`
-- 29 new files, 16 modified
-- 30 new tests, all 3045 tests passing
-- Uses existing `LLMService` / `RoutingLLMClient` provider architecture
-- Screenshots stored in `~/Library/Application Support/MacParakeet/journal/`
-
 ## Verify
 
 ```bash
 # SHA-256
 shasum -a 256 MacParakeet.dmg
-# 3d58bd013fc173b25f6c386833cb93aa62793d43e4741654870a15ed6f792c99
+# 5338d7debc2b6afb7b9413ecfbc41c67b15788bfa24b15a8cfe49cd7516f9de1
 
 # Gatekeeper
-spctl --assess --verbose --type execute MacParakeet.dmg
+spctl --assess --verbose --type install MacParakeet.dmg
 ```
 
 ## Requirements

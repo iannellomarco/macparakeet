@@ -10,7 +10,9 @@ struct JournalControlView: View {
     var body: some View {
         GroupBox {
             VStack(spacing: 12) {
-                if viewModel.isJournaling {
+                if viewModel.isComputing {
+                    computingView
+                } else if viewModel.isJournaling {
                     recordingView
                 } else if viewModel.isReviewing {
                     reviewingView
@@ -111,6 +113,28 @@ struct JournalControlView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    // MARK: - Computing state
+
+    private var computingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.2)
+                .padding(.bottom, 4)
+
+            Text(viewModel.isReviewing
+                ? "Generating day snapshot..."
+                : "Processing final batch...")
+                .font(.headline)
+
+            Text("The AI is analyzing your day's activity. This may take a moment.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 250)
+        }
+        .padding(.vertical, 8)
     }
 
     // MARK: - Helpers
