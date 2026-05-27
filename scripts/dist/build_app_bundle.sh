@@ -594,7 +594,7 @@ cat >"$INFO_PLIST" <<EOF
   <key>SUEnableAutomaticChecks</key>
   <true/>
   <key>SUPublicEDKey</key>
-  <string>2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=</string>
+  <string>N/L9A3Dq0CVwDIlibInW1J7EW4ctRc6TyzidwwLH/PE=</string>
 $(printf "%b" "$LICENSING_PLIST")
 </dict>
 </plist>

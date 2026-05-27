@@ -2,21 +2,22 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>MacParakeet Day Journal</title>
-    <description>Fork of MacParakeet with Day Journal feature — periodic screen capture + AI-driven daily second-brain</description>
+    <description>Fork of MacParakeet with Day Journal feature</description>
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet-dayjournal/</link>
     <item>
-      <title>MacParakeet Day Journal v0.6.0-journal.5</title>
-      <description>Public repo + GitHub Pages update channel. Dedicated analyzeJournal LLM method. Clickable journal entries with calendar navigation. Meeting transcript integration. Loading indicators.</description>
-      <pubDate>Wed, 27 May 2026 19:20:00 +0000</pubDate>
-      <sparkle:version>0.6.0-journal.5</sparkle:version>
-      <sparkle:shortVersionString>0.6.0-journal.5</sparkle:shortVersionString>
+      <title>MacParakeet Day Journal v0.6.0-journal.6</title>
+      <description>EdDSA-signed appcast. Dedicated analyzeJournal LLM method. Clickable journal entries, calendar, meeting context, loading indicators.</description>
+      <pubDate>Wed, 27 May 2026 19:32:00 +0000</pubDate>
+      <sparkle:version>0.6.0-journal.6</sparkle:version>
+      <sparkle:shortVersionString>0.6.0-journal.6</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.5/MacParakeet-0.6.0-journal.5.dmg"
-        sparkle:version="0.6.0-journal.5"
-        sparkle:shortVersionString="0.6.0-journal.5"
-        length="132970000"
+        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.6/MacParakeet-0.6.0-journal.6.dmg"
+        sparkle:version="0.6.0-journal.6"
+        sparkle:shortVersionString="0.6.0-journal.6"
+        sparkle:edSignature="AVzoyWv0/zigHdQ8wxjM+vU87l1Eut463Cr3TPK7XqVgfB0BEwFuZe0PoiskkGdbsrhQbLG9teGcg+yXdrPPDw=="
+        length="133054692"
         type="application/x-apple-diskimage"
       />
     </item>
