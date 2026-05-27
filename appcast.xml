@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>MacParakeet Day Journal</title>
+    <description>Fork of MacParakeet with Day Journal feature — periodic screen capture + AI-driven daily second-brain</description>
+    <language>en</language>
+    <link>https://github.com/iannellomarco/macparakeet-dayjournal</link>
+    <item>
+      <title>MacParakeet Day Journal v0.6.0-journal.4</title>
+      <description>Dedicated analyzeJournal LLM method, clickable journal entries, calendar navigation, loading indicators, meeting context integration, fork update channel</description>
+      <pubDate>Wed, 27 May 2026 14:05:00 +0000</pubDate>
+      <sparkle:version>0.6.0-journal.4</sparkle:version>
+      <sparkle:shortVersionString>0.6.0-journal.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.4/MacParakeet-0.6.0-journal.4.dmg"
+        sparkle:version="0.6.0-journal.4"
+        sparkle:shortVersionString="0.6.0-journal.4"
+        length="132950000"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+  </channel>
+</rss>

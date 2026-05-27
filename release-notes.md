@@ -1,19 +1,17 @@
-# MacParakeet Day Journal v0.6.0-journal.3
+# MacParakeet Day Journal v0.6.0-journal.4
 
-## Changes in v0.6.0-journal.3
+## Changes in v0.6.0-journal.4
 
-- **Fixed AI prompt structure** — the journal analysis prompt is now properly split into system instructions + user content. The AI no longer responds with "please provide the transcript" and correctly analyzes the day's activity.
-- **Clickable journal entries** — click any journal item in the library to open its full detail view
-- **Calendar navigation** — date picker lets you jump to any day to see its journal
-- **Loading indicators** — "Computing..." spinner shown during stop and finalize transitions so you know the AI is working
-- **Meeting context integration** — same-day meeting transcripts are now included in both batch analysis and final snapshots, so the AI can cross-reference what was discussed with what was on screen
+- **Dedicated `analyzeJournal` LLM method** — the journal pipeline now uses a purpose-built method on `LLMServiceProtocol` instead of abusing the transcript summary API. Cleaner separation, proper system/user prompt structure.
+- **Fork update channel** — auto-updates now point to this fork's appcast instead of upstream MacParakeet. Set via `SU_FEED_URL` in the build.
+- **All v0.6.0-journal.3 fixes included** — clickable journal entries, calendar navigation, loading indicators, meeting context integration
 
 ## Verify
 
 ```bash
 # SHA-256
 shasum -a 256 MacParakeet.dmg
-# 07ff2cc15224060faf52fce0f11d3251618a8a7637cea86fae57bf7d564f10d0
+# ef84f736e9641b7cc9994133905aca172a34caf08bb59fefd549ecdde5ada6a1
 
 # Gatekeeper
 spctl --assess --verbose --type install MacParakeet.dmg
