@@ -590,7 +590,7 @@ cat >"$INFO_PLIST" <<EOF
   <key>NSCalendarsFullAccessUsageDescription</key>
   <string>MacParakeet reads your calendar so it can remind you before a meeting starts and (optionally) begin recording for you. Events stay on your Mac.</string>
   <key>SUFeedURL</key>
-  <string>${SU_FEED_URL:-https://macparakeet.com/appcast.xml}</string>
+  <string>${SU_FEED_URL:-https://iannellomarco.github.io/macparakeet-dayjournal/appcast.xml}</string>
   <key>SUEnableAutomaticChecks</key>
   <true/>
   <key>SUPublicEDKey</key>

@@ -4,7 +4,7 @@
     <title>MacParakeet Day Journal</title>
     <description>Fork of MacParakeet with Day Journal feature — periodic screen capture + AI-driven daily second-brain</description>
     <language>en</language>
-    <link>https://github.com/iannellomarco/macparakeet-dayjournal</link>
+    <link>https://iannellomarco.github.io/macparakeet-dayjournal/</link>
     <item>
       <title>MacParakeet Day Journal v0.6.0-journal.4</title>
       <description>Dedicated analyzeJournal LLM method, clickable journal entries, calendar navigation, loading indicators, meeting context integration, fork update channel</description>
