@@ -6,18 +6,18 @@
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet-dayjournal/</link>
     <item>
-      <title>MacParakeet Day Journal v0.6.0-journal.6</title>
-      <description>EdDSA-signed appcast. Dedicated analyzeJournal LLM method. Clickable journal entries, calendar, meeting context, loading indicators.</description>
-      <pubDate>Wed, 27 May 2026 19:32:00 +0000</pubDate>
-      <sparkle:version>0.6.0-journal.6</sparkle:version>
-      <sparkle:shortVersionString>0.6.0-journal.6</sparkle:shortVersionString>
+      <title>MacParakeet Day Journal v0.6.0-journal.7</title>
+      <description>UX overhaul — redesigned journal views, animated recording indicator, Markdown rendering, calendar grid, stats cards. New README.</description>
+      <pubDate>Wed, 27 May 2026 20:05:00 +0000</pubDate>
+      <sparkle:version>0.6.0-journal.7</sparkle:version>
+      <sparkle:shortVersionString>0.6.0-journal.7</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.6/MacParakeet-0.6.0-journal.6.dmg"
-        sparkle:version="0.6.0-journal.6"
-        sparkle:shortVersionString="0.6.0-journal.6"
-        sparkle:edSignature="AVzoyWv0/zigHdQ8wxjM+vU87l1Eut463Cr3TPK7XqVgfB0BEwFuZe0PoiskkGdbsrhQbLG9teGcg+yXdrPPDw=="
-        length="133054692"
+        url="https://github.com/iannellomarco/macparakeet-dayjournal/releases/download/v0.6.0-journal.7/MacParakeet-0.6.0-journal.7.dmg"
+        sparkle:version="0.6.0-journal.7"
+        sparkle:shortVersionString="0.6.0-journal.7"
+        sparkle:edSignature="YYLlXjibVX2hqjRv+trFiVIxCEWxnF4UKEkYVFsPe9Qy6lfmV1Ua0Rs1aApEFMDNO2KTCmwt7vgCIQm/WOtzDg=="
+        length="133134933"
         type="application/x-apple-diskimage"
       />
     </item>
