@@ -6,18 +6,18 @@
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet/</link>
     <item>
-      <title>MacParakeet Day Journal v0.6.1</title>
-      <description>UX overhaul — redesigned journal views, animated recording indicator, Markdown rendering, calendar grid, stats cards.</description>
-      <pubDate>Wed, 27 May 2026 20:16:00 +0000</pubDate>
-      <sparkle:version>20260528081221</sparkle:version>
-      <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
+      <title>MacParakeet Day Journal v0.6.100</title>
+      <description>Update channel verification test.</description>
+      <pubDate>Wed, 28 May 2026 08:44:00 +0000</pubDate>
+      <sparkle:version>20260528084213</sparkle:version>
+      <sparkle:shortVersionString>0.6.100</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/iannellomarco/macparakeet/releases/download/v0.6.1/MacParakeet-0.6.1.dmg"
-        sparkle:version="20260528081221"
-        sparkle:shortVersionString="0.6.1"
-        sparkle:edSignature="J9/DlKVCa0RuBpjrd9iJlAx7NAQ4qiv5wqFZ69fKwCw+ryNymMHc0kg2GHUWmsEOL3TQqE0/oNv73KeDWvS+Aw=="
-        length="133359545"
+        url="https://github.com/iannellomarco/macparakeet/releases/download/v0.6.100/MacParakeet-0.6.100.dmg"
+        sparkle:version="20260528084213"
+        sparkle:shortVersionString="0.6.100"
+        sparkle:edSignature="KwmdoJgrlZKw/kBA9BPlc4kqfr9QroiAjwHF3xatFSPC1isqltv2oRPVoZVO10sEpBlhzBiz3r3WgO+Uc7piDQ=="
+        length="133359552"
         type="application/x-apple-diskimage"
       />
     </item>
