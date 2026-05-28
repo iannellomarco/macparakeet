@@ -2,22 +2,22 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
     <title>MacParakeet Day Journal</title>
-    <description>Fork of MacParakeet with Day Journal feature</description>
+    <description>Official fork of moona3k/macparakeet with Day Journal feature</description>
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet/</link>
     <item>
       <title>MacParakeet Day Journal v0.6.1</title>
       <description>UX overhaul — redesigned journal views, animated recording indicator, Markdown rendering, calendar grid, stats cards.</description>
       <pubDate>Wed, 27 May 2026 20:16:00 +0000</pubDate>
-      <sparkle:version>20260527201423</sparkle:version>
+      <sparkle:version>20260528081221</sparkle:version>
       <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
       <enclosure
         url="https://github.com/iannellomarco/macparakeet/releases/download/v0.6.1/MacParakeet-0.6.1.dmg"
-        sparkle:version="20260527201423"
+        sparkle:version="20260528081221"
         sparkle:shortVersionString="0.6.1"
-        sparkle:edSignature="SwFhVxFOvOZ16o7pXMXsiM0gQzHSYYLHPLZZIhu9pMojheXfHWCnT+DprMOri/gsYx4N3+MwjezaRegcr6nRBg=="
-        length="133133674"
+        sparkle:edSignature="J9/DlKVCa0RuBpjrd9iJlAx7NAQ4qiv5wqFZ69fKwCw+ryNymMHc0kg2GHUWmsEOL3TQqE0/oNv73KeDWvS+Aw=="
+        length="133359545"
         type="application/x-apple-diskimage"
       />
     </item>
