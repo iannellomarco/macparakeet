@@ -133,6 +133,12 @@ struct MeetingsView: View {
     private var upcomingSection: some View {
         if AppFeatures.calendarEnabled {
             MeetingsSection(title: "Upcoming", icon: "calendar.badge.clock") {
+                CalendarInlineControlsRow(
+                    settingsViewModel: viewModel.settingsViewModel,
+                    onOpenCalendarSettings: onOpenCalendarSettings
+                )
+                MeetingsHairline()
+
                 switch viewModel.calendarStatus {
                 case .unavailable:
                     unavailableCalendarState
@@ -140,10 +146,10 @@ struct MeetingsView: View {
                     MeetingsInlineState(
                         icon: "calendar",
                         title: "Calendar reminders are off",
-                        detail: "Open Settings to turn on meeting reminders.",
-                        actionTitle: "Open Settings",
-                        actionIcon: "gearshape",
-                        action: onOpenCalendarSettings
+                        detail: "Turn on Reminders or Auto-start above to preview matching calendar events.",
+                        actionTitle: nil,
+                        actionIcon: nil,
+                        action: nil
                     )
                 case .permissionNeeded:
                     MeetingsInlineState(
@@ -536,6 +542,156 @@ struct MeetingsView: View {
     }
 }
 
+private struct CalendarInlineControlsRow: View {
+    @Bindable var settingsViewModel: SettingsViewModel
+    var onOpenCalendarSettings: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 7) {
+                        Text("Calendar")
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                        CalendarModeBadge(mode: settingsViewModel.calendarAutoStartMode)
+                    }
+
+                    Text(calendarDetail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.sm)
+
+                Button(action: onOpenCalendarSettings) {
+                    Label("Calendars", systemImage: "slider.horizontal.3")
+                }
+                .parakeetAction(.subtle)
+                .help("Open Calendar Settings")
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    calendarModePicker
+                    eventFilterPicker
+                }
+
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    calendarModePicker
+                    eventFilterPicker
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var calendarModePicker: some View {
+        Picker("Calendar behavior", selection: $settingsViewModel.calendarAutoStartMode) {
+            Text("Off").tag(CalendarAutoStartMode.off)
+            Text("Reminders").tag(CalendarAutoStartMode.notify)
+            Text("Auto-start").tag(CalendarAutoStartMode.autoStart)
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .frame(width: 252)
+    }
+
+    private var eventFilterPicker: some View {
+        CalendarMenuPicker(label: "Events") {
+            Picker("Event filter", selection: $settingsViewModel.meetingTriggerFilter) {
+                Text("With video link").tag(MeetingTriggerFilter.withLink)
+                Text("With participants").tag(MeetingTriggerFilter.withParticipants)
+                Text("All events").tag(MeetingTriggerFilter.allEvents)
+            }
+        }
+    }
+
+    private var calendarDetail: String {
+        switch settingsViewModel.calendarAutoStartMode {
+        case .off:
+            return "Turn on calendar matching without leaving Meetings."
+        case .notify:
+            return "Preview matching events and remind before they start."
+        case .autoStart:
+            return "Auto-start matching meetings after a cancellable countdown."
+        }
+    }
+}
+
+private struct CalendarModeBadge: View {
+    let mode: CalendarAutoStartMode
+
+    var body: some View {
+        Text(title)
+            .font(DesignSystem.Typography.micro.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.12)))
+    }
+
+    private var title: String {
+        switch mode {
+        case .off:
+            return "Off"
+        case .notify:
+            return "Reminders"
+        case .autoStart:
+            return "Auto-start"
+        }
+    }
+
+    private var tint: Color {
+        switch mode {
+        case .off:
+            return DesignSystem.Colors.textTertiary
+        case .notify:
+            return DesignSystem.Colors.accent
+        case .autoStart:
+            return DesignSystem.Colors.warningAmber
+        }
+    }
+}
+
+private struct CalendarMenuPicker<Content: View>: View {
+    let label: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(DesignSystem.Typography.micro.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+            content()
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(minWidth: 128, alignment: .leading)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.55), lineWidth: 0.5)
+        )
+    }
+}
+
 private struct MeetingsSection<Content: View>: View {
     let title: String
     let icon: String
@@ -657,6 +813,8 @@ private struct CalendarEventRow: View {
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .lineLimit(1)
                 HStack(spacing: 6) {
+                    Text(eventDateText)
+                    Text("·")
                     Text(event.formattedTimeRange)
                     if let calendarName = event.calendarName, !calendarName.isEmpty {
                         Text("·")
@@ -679,6 +837,15 @@ private struct CalendarEventRow: View {
     private var peopleCountText: String {
         let count = event.attendeeCount + 1
         return "\(count) \(count == 1 ? "person" : "people")"
+    }
+
+    private var eventDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        formatter.doesRelativeDateFormatting = true
+        return formatter.string(from: event.startTime)
     }
 }
 
