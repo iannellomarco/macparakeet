@@ -54,6 +54,9 @@ final class MainWindowStateTests: XCTestCase {
 
     func testPrimarySidebarOrderRespectsMeetingFeatureFlag() {
         var expected: [SidebarItem] = [.transcribe, .library, .dictations]
+        if AppFeatures.journalingEnabled {
+            expected.insert(.journal, at: 2)
+        }
         if AppFeatures.meetingRecordingEnabled {
             expected.append(.meetings)
         }
