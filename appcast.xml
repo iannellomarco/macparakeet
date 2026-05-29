@@ -6,6 +6,22 @@
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet/</link>
     <item>
+      <title>MacParakeet Day Journal v0.7.0-journal.2</title>
+      <description>Hotfix: resolves a crash on launch ("table journal_sessions already exists") when upgrading from the older Day Journal build.</description>
+      <pubDate>Fri, 29 May 2026 17:13:09 +0000</pubDate>
+      <sparkle:version>20260529170513</sparkle:version>
+      <sparkle:shortVersionString>0.7.0-journal.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/iannellomarco/macparakeet/releases/download/v0.7.0-journal.2/MacParakeet-0.7.0-journal.2.dmg"
+        sparkle:version="20260529170513"
+        sparkle:shortVersionString="0.7.0-journal.2"
+        sparkle:edSignature="OOeNuhIiiJvsq2iE2x3L1ujPHhh5jq68jMB2bMnXJ1JWfLIcEKBq2qvogQpG4ctg94hSWHYI3We61HHEuZUaBA=="
+        length="133581829"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+    <item>
       <title>MacParakeet Day Journal v0.7.0-journal.1</title>
       <description>Redesigned Journal tab (master-detail) and a thorough, adversarially-reviewed fix pass across the Day Journal subsystem.</description>
       <pubDate>Fri, 29 May 2026 15:47:14 +0000</pubDate>
