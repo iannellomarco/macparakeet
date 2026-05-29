@@ -902,7 +902,15 @@ public final class DatabaseManager: Sendable {
         }
 
         migrator.registerMigration("v0.22-journal-tables") { db in
-            try db.create(table: "journal_sessions") { t in
+            // Idempotent: the original (pre-fork) Day Journal build shipped this
+            // same schema under the identifier "v0.20-journal-tables". After the
+            // upstream merge it was renumbered to v0.22, so databases created by
+            // the old build already contain these tables but have NOT recorded
+            // "v0.22-journal-tables". Without `ifNotExists` GRDB would re-run this
+            // migration and crash with "table journal_sessions already exists" on
+            // every dayjournal→fork upgrade. Create-if-absent makes it a safe no-op
+            // for those databases while still creating the schema on fresh installs.
+            try db.create(table: "journal_sessions", ifNotExists: true) { t in
                 t.column("id", .text).primaryKey()
                 t.column("createdAt", .text).notNull()
                 t.column("endedAt", .text)
@@ -918,7 +926,7 @@ public final class DatabaseManager: Sendable {
                 t.column("updatedAt", .text).notNull()
             }
 
-            try db.create(table: "journal_screenshots") { t in
+            try db.create(table: "journal_screenshots", ifNotExists: true) { t in
                 t.column("id", .text).primaryKey()
                 t.column("sessionId", .text).notNull()
                     .references("journal_sessions", onDelete: .cascade)
@@ -935,10 +943,11 @@ public final class DatabaseManager: Sendable {
             try db.create(
                 index: "idx_journal_screenshots_session",
                 on: "journal_screenshots",
-                columns: ["sessionId", "capturedAt"]
+                columns: ["sessionId", "capturedAt"],
+                ifNotExists: true
             )
 
-            try db.create(table: "journal_analysis_runs") { t in
+            try db.create(table: "journal_analysis_runs", ifNotExists: true) { t in
                 t.column("id", .text).primaryKey()
                 t.column("sessionId", .text).notNull()
                     .references("journal_sessions", onDelete: .cascade)
@@ -954,10 +963,11 @@ public final class DatabaseManager: Sendable {
             try db.create(
                 index: "idx_journal_analysis_runs_session",
                 on: "journal_analysis_runs",
-                columns: ["sessionId", "runAt"]
+                columns: ["sessionId", "runAt"],
+                ifNotExists: true
             )
 
-            try db.create(table: "journal_questions") { t in
+            try db.create(table: "journal_questions", ifNotExists: true) { t in
                 t.column("id", .text).primaryKey()
                 t.column("sessionId", .text).notNull()
                     .references("journal_sessions", onDelete: .cascade)
@@ -972,7 +982,8 @@ public final class DatabaseManager: Sendable {
             try db.create(
                 index: "idx_journal_questions_session",
                 on: "journal_questions",
-                columns: ["sessionId", "status"]
+                columns: ["sessionId", "status"],
+                ifNotExists: true
             )
         }
 

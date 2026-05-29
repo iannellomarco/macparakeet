@@ -24,6 +24,41 @@ final class DatabaseManagerTests: XCTestCase {
         XCTAssertNotNil(manager.dbQueue)
     }
 
+    /// Regression: the pre-fork Day Journal build recorded the journal schema
+    /// under "v0.20-journal-tables"; after the upstream merge the fork renumbered
+    /// it to "v0.22-journal-tables". A database that already contains the journal
+    /// tables but has NOT recorded the new identifier must not crash on launch
+    /// with "table journal_sessions already exists" — the migration is idempotent.
+    func testJournalTablesMigrationIsIdempotentAfterIdentifierRename() throws {
+        let dbPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-journal-rename-\(UUID().uuidString).db")
+            .path
+        defer { cleanupDatabaseFiles(atPath: dbPath) }
+
+        // First open runs all migrations: journal tables exist + v0.22 recorded.
+        var manager: DatabaseManager? = try DatabaseManager(path: dbPath)
+        try manager!.dbQueue.write { db in
+            XCTAssertTrue(try db.tableExists("journal_sessions"))
+            // Simulate the legacy lineage: the journal tables exist on disk, but
+            // the renumbered migration identifier was never recorded.
+            try db.execute(sql: """
+                DELETE FROM grdb_migrations
+                WHERE identifier IN ('v0.22-journal-tables', 'v0.23-drop-legacy-screenshot-entries')
+                """)
+        }
+        manager = nil // release the connection before reopening
+
+        // Reopening must NOT throw: the journal migration re-runs against a DB
+        // that already has the tables. (Without `ifNotExists` this crashed.)
+        let reopened = try DatabaseManager(path: dbPath)
+        try reopened.dbQueue.read { db in
+            XCTAssertTrue(try db.tableExists("journal_sessions"))
+            XCTAssertTrue(try db.tableExists("journal_screenshots"))
+            XCTAssertTrue(try db.tableExists("journal_analysis_runs"))
+            XCTAssertTrue(try db.tableExists("journal_questions"))
+        }
+    }
+
     func testFileBackedConnectionsWaitForShortWriteLock() throws {
         let dbPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-lock-wait-\(UUID().uuidString).db")
