@@ -6,6 +6,22 @@
     <language>en</language>
     <link>https://iannellomarco.github.io/macparakeet/</link>
     <item>
+      <title>MacParakeet Day Journal v0.7.0-journal.1</title>
+      <description>Redesigned Journal tab (master-detail) and a thorough, adversarially-reviewed fix pass across the Day Journal subsystem.</description>
+      <pubDate>Fri, 29 May 2026 15:47:14 +0000</pubDate>
+      <sparkle:version>20260529153621</sparkle:version>
+      <sparkle:shortVersionString>0.7.0-journal.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/iannellomarco/macparakeet/releases/download/v0.7.0-journal.1/MacParakeet-0.7.0-journal.1.dmg"
+        sparkle:version="20260529153621"
+        sparkle:shortVersionString="0.7.0-journal.1"
+        sparkle:edSignature="dV0instRcMElnhTM8GhstxzuPkbVSJYkKD6CxCxk5EYrk2GCTabavpZC7pWBYdaLqgVzTCSR3bp1RILqcPn3DA=="
+        length="133580123"
+        type="application/x-apple-diskimage"
+      />
+    </item>
+    <item>
       <title>MacParakeet Day Journal v0.6.100</title>
       <description>Update channel verification test.</description>
       <pubDate>Wed, 28 May 2026 08:44:00 +0000</pubDate>
