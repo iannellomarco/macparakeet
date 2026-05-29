@@ -71,6 +71,7 @@ public final class MeetingsWorkspaceViewModel {
     public let settingsViewModel: SettingsViewModel
     public let llmSettingsViewModel: LLMSettingsViewModel
     public let quickPromptsViewModel: QuickPromptsViewModel
+    public let promptsViewModel: PromptsViewModel
 
     public private(set) var upcomingEvents: [CalendarEvent] = []
     public private(set) var isLoadingUpcomingEvents = false
@@ -89,6 +90,7 @@ public final class MeetingsWorkspaceViewModel {
         settingsViewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
         quickPromptsViewModel: QuickPromptsViewModel? = nil,
+        promptsViewModel: PromptsViewModel? = nil,
         calendarService: any CalendarServicing = CalendarService.shared
     ) {
         self.recentMeetingsViewModel = recentMeetingsViewModel
@@ -96,6 +98,7 @@ public final class MeetingsWorkspaceViewModel {
         self.settingsViewModel = settingsViewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.quickPromptsViewModel = quickPromptsViewModel ?? QuickPromptsViewModel()
+        self.promptsViewModel = promptsViewModel ?? PromptsViewModel()
         self.calendarService = calendarService
     }
 
@@ -105,11 +108,15 @@ public final class MeetingsWorkspaceViewModel {
 
     public func configure(
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        quickPromptRepo: QuickPromptRepositoryProtocol? = nil
+        quickPromptRepo: QuickPromptRepositoryProtocol? = nil,
+        promptRepo: PromptRepositoryProtocol? = nil
     ) {
         recentMeetingsViewModel.configure(transcriptionRepo: transcriptionRepo)
         if let quickPromptRepo {
             quickPromptsViewModel.configure(repo: quickPromptRepo)
+        }
+        if let promptRepo {
+            promptsViewModel.configure(repo: promptRepo)
         }
     }
 
@@ -118,6 +125,7 @@ public final class MeetingsWorkspaceViewModel {
         refreshRecentMeetings()
         refreshUpcomingEvents()
         refreshQuickPrompts()
+        refreshAutoNotes()
     }
 
     public func refreshIfNeeded() {
@@ -154,10 +162,9 @@ public final class MeetingsWorkspaceViewModel {
             do {
                 let events = try await calendarService.fetchUpcomingEvents(days: lookAheadDays)
                 guard let self, !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
-                self.upcomingEvents = Array(
-                    events
-                        .filter { event in self.shouldShowCalendarEvent(event) }
-                        .prefix(max(0, eventLimit))
+                self.upcomingEvents = Self.collapseRecurringOccurrences(
+                    events.filter { event in self.shouldShowCalendarEvent(event) },
+                    limit: eventLimit
                 )
                 self.isLoadingUpcomingEvents = false
             } catch {
@@ -181,6 +188,54 @@ public final class MeetingsWorkspaceViewModel {
 
     public var liveAskPromptPreviewPrompts: [QuickPrompt] {
         Array(quickPromptsViewModel.visiblePinned.prefix(2))
+    }
+
+    // MARK: - After-each-meeting auto-notes
+
+    public func refreshAutoNotes() {
+        promptsViewModel.loadPrompts()
+    }
+
+    /// Visible result prompts the user can toggle as meeting auto-notes.
+    /// Hidden prompts can't auto-run, so they're excluded from the card.
+    /// (`promptsViewModel.prompts` is already `.result`-only.)
+    public var meetingAutoNotePrompts: [Prompt] {
+        promptsViewModel.prompts.filter { $0.isVisible }
+    }
+
+    /// Prompts that will actually auto-run after a meeting finishes.
+    public var meetingAutoNoteActivePrompts: [Prompt] {
+        meetingAutoNotePrompts.filter { $0.autoRuns(for: .meeting) }
+    }
+
+    public var meetingAutoNoteActiveCount: Int {
+        meetingAutoNoteActivePrompts.count
+    }
+
+    public func isMeetingAutoNote(_ prompt: Prompt) -> Bool {
+        prompt.autoRuns(for: .meeting)
+    }
+
+    public func setMeetingAutoNote(_ prompt: Prompt, enabled: Bool) {
+        promptsViewModel.setAutoRun(prompt, source: .meeting, enabled: enabled)
+    }
+
+    /// Auto-notes need a configured AI provider to generate. `false` only when
+    /// no provider is set up yet (the card shows a "Set up AI" prompt instead
+    /// of dead toggles); a chosen-but-unreachable provider still shows toggles.
+    public var isAutoNotesConfigured: Bool {
+        if case .setupNeeded = intelligenceStatus { return false }
+        return true
+    }
+
+    /// Display name of the configured provider, for the card's "Uses …" line.
+    public var autoNotesProviderName: String? {
+        switch intelligenceStatus {
+        case .ready(let displayName, _), .cannotConnect(let displayName, _):
+            return displayName
+        case .setupNeeded:
+            return nil
+        }
     }
 
     public var recordingStatus: RecordingStatus {
@@ -285,7 +340,26 @@ public final class MeetingsWorkspaceViewModel {
             && settingsViewModel.calendarPermissionStatus == .granted
     }
 
+    /// Decides which fetched events appear in the "Upcoming" preview.
+    ///
+    /// This mirrors the *candidate* set MacParakeet acts on, so the preview
+    /// never promises behavior the coordinator won't deliver. It matches the
+    /// candidate filter of `MeetingAutoStartCoordinator` + `MeetingMonitor.evaluate`:
+    ///   - exclude all-day and RSVP-declined events (`MeetingMonitor` candidate filter),
+    ///   - exclude calendars the user opted out of (`filterByIncludedCalendars`),
+    ///   - apply the trigger filter (`MeetingMonitor.passesFilter`).
+    /// RSVP is deliberately NOT mode-gated here: every candidate gets a reminder
+    /// in any non-`.off` mode, and `.pending`/`.tentative` differ only in whether
+    /// they additionally auto-*record* (`MeetingMonitor.shouldAutoStart`) — a
+    /// per-event nuance, not list membership. Hiding `.pending` in `.autoStart`
+    /// would make the app remind about an event missing from this list.
+    /// The only candidate-filter input not mirrored is `MeetingMonitor`'s
+    /// runtime `dismissedEventIds` (coordinator-private session state); a
+    /// dismissed event reappears here until it passes or the mode changes.
+    /// If the candidate rules change in `MeetingMonitor`, update this in lockstep.
     private func shouldShowCalendarEvent(_ event: CalendarEvent) -> Bool {
+        guard !event.isAllDay, !event.userDeclined else { return false }
+
         if let calendarIdentifier = event.calendarIdentifier,
            settingsViewModel.calendarExcludedIdentifiers.contains(calendarIdentifier) {
             return false
@@ -299,5 +373,34 @@ public final class MeetingsWorkspaceViewModel {
         case .allEvents:
             return true
         }
+    }
+
+    /// Collapses occurrences of a recurring series down to its soonest
+    /// occurrence, then caps the list to `limit`.
+    ///
+    /// Every occurrence of a recurring series shares one `CalendarEvent.id`
+    /// (EventKit's `eventIdentifier` — see the identity note in
+    /// `CalendarEvent.swift`). Two reasons this matters here:
+    ///   1. The "Upcoming" preview should list *distinct* meetings, not the
+    ///      same daily standup four times pushing every other meeting out of a
+    ///      4-row preview.
+    ///   2. The view renders `ForEach(upcomingEvents)` keyed on `id`, so
+    ///      duplicate ids would give SwiftUI "undefined results" (collapsed or
+    ///      mis-diffed rows).
+    /// This collapse is display-only: `MeetingMonitor`/the coordinator still
+    /// act on *every* occurrence (they key on `dedupeKey`, id + start time).
+    /// Picks the soonest occurrence per id regardless of input order so the
+    /// preview never depends on the service's sort guarantee.
+    static func collapseRecurringOccurrences(_ events: [CalendarEvent], limit: Int) -> [CalendarEvent] {
+        var soonestByID: [String: CalendarEvent] = [:]
+        for event in events {
+            if let existing = soonestByID[event.id], existing.startTime <= event.startTime { continue }
+            soonestByID[event.id] = event
+        }
+        return Array(
+            soonestByID.values
+                .sorted { $0.startTime < $1.startTime }
+                .prefix(max(0, limit))
+        )
     }
 }

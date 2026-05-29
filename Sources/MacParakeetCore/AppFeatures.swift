@@ -48,6 +48,13 @@ public enum AppFeatures {
     /// Day Journal — screenshot capture + AI analysis (v0.20). When `false`,
     /// all journal entry points are hidden: menu bar item, Transcribe tile,
     /// sidebar entry, settings section. Data model, services, and tests
-    /// remain intact. Defaults to `false` (strictly opt-in).
+    /// remain intact. Defaults to `true` (opt-in via UI).
     public static let journalingEnabled: Bool = true
+
+    /// VAD-guided meeting live chunking. When `false`, meeting live-preview
+    /// chunks use the fixed 5s / 1s-overlap `AudioChunker` path. When `true`
+    /// and the Silero VAD model is cached, live preview cuts at speech
+    /// boundaries for Parakeet sessions.
+    /// Default-off pending Phase 0 benchmark and Phase 5 threshold tuning.
+    public static let meetingVadLiveChunkingEnabled: Bool = false
 }

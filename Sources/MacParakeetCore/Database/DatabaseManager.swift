@@ -891,7 +891,17 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        migrator.registerMigration("v0.20-journal-tables") { db in
+        // v0.20 — Source-scoped auto-run (ADR-020 2026-05 amendment).
+        migrator.registerMigration("v0.20-prompt-applies-to-sources") { db in
+            let existingColumns = try db.columns(in: "prompts").map(\.name)
+            if !existingColumns.contains("appliesToSources") {
+                try db.alter(table: "prompts") { t in
+                    t.add(column: "appliesToSources", .text)
+                }
+            }
+        }
+
+        migrator.registerMigration("v0.22-journal-tables") { db in
             try db.create(table: "journal_sessions") { t in
                 t.column("id", .text).primaryKey()
                 t.column("createdAt", .text).notNull()
@@ -966,7 +976,7 @@ public final class DatabaseManager: Sendable {
             )
         }
 
-        migrator.registerMigration("v0.21-drop-legacy-screenshot-entries") { db in
+        migrator.registerMigration("v0.23-drop-legacy-screenshot-entries") { db in
             try? db.execute(sql: "DROP TABLE IF EXISTS screenshot_entries")
             try? db.execute(sql: "DROP INDEX IF EXISTS idx_screenshot_entries_captured_at")
             try? db.execute(sql: "DROP INDEX IF EXISTS idx_screenshot_entries_bundle_id")
