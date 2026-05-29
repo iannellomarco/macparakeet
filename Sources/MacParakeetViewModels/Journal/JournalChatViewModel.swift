@@ -29,8 +29,11 @@ public final class JournalChatViewModel {
     public var isStreaming: Bool = false
     public var canFinalize: Bool = false
     public var errorMessage: String?
+    /// AI clarification questions the user can still answer or dismiss.
+    public var pendingQuestions: [JournalQuestion] = []
 
     private var llmService: LLMServiceProtocol?
+    private var questionTracker: JournalQuestionTrackerProtocol?
     private var sessionId: UUID?
     private var runningSummary: String = ""
     private var questions: [JournalQuestion] = []
@@ -44,8 +47,16 @@ public final class JournalChatViewModel {
     public init() {}
 
     public func configure(
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        questionTracker: JournalQuestionTrackerProtocol? = nil
     ) {
+        self.llmService = llmService
+        self.questionTracker = questionTracker
+    }
+
+    /// Update just the LLM provider when the user (re)configures it after launch,
+    /// without disturbing the question tracker. Wired from refreshLLMAvailability.
+    public func updateLLMService(_ llmService: LLMServiceProtocol?) {
         self.llmService = llmService
     }
 
@@ -57,20 +68,14 @@ public final class JournalChatViewModel {
         self.sessionId = sessionId
         self.runningSummary = runningSummary
         self.questions = questions
+        self.pendingQuestions = questions.filter { $0.status == .pending }
 
-        // Build the initial AI message with observations and questions
+        // Build the initial AI message. Questions are surfaced as interactive
+        // chips in the panel (answer/dismiss), so they aren't duplicated here.
         var introContent = "Here's what I observed during your workday:\n\n"
         introContent += runningSummary
-
-        if !questions.isEmpty {
-            let pendingQuestions = questions.filter { $0.status == .pending }
-            if !pendingQuestions.isEmpty {
-                introContent += "\n\nI have a few questions to help fill in the gaps:\n\n"
-                for (i, question) in pendingQuestions.enumerated() {
-                    introContent += "\(i + 1). \(question.question)\n"
-                }
-                introContent += "\nFeel free to answer any of these, or just tell me what I missed."
-            }
+        if !pendingQuestions.isEmpty {
+            introContent += "\n\nI jotted down a few questions below — answer any that help, or just tell me what I missed."
         }
 
         messages = [
@@ -82,7 +87,39 @@ public final class JournalChatViewModel {
         canFinalize = true
     }
 
+    /// Persist the user's answer to a clarification question and remove it from
+    /// the pending list. The answer feeds the final-snapshot generation.
+    public func answerQuestion(_ question: JournalQuestion, with answer: String) async {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try await questionTracker?.answer(questionId: question.id, answer: trimmed)
+            pendingQuestions.removeAll { $0.id == question.id }
+            messages.append(JournalChatMessage(
+                role: .user,
+                content: "\(question.question)\n\n\(trimmed)"
+            ))
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.error("Failed to answer journal question: \(error.localizedDescription)")
+        }
+    }
+
+    /// Dismiss a clarification question without answering it.
+    public func dismissQuestion(_ question: JournalQuestion) async {
+        do {
+            try await questionTracker?.dismiss(questionId: question.id)
+            pendingQuestions.removeAll { $0.id == question.id }
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.error("Failed to dismiss journal question: \(error.localizedDescription)")
+        }
+    }
+
     public func sendMessage() async {
+        // Ignore submits while a response is still streaming — the send button is
+        // disabled in that state, but the text field's Enter key bypasses it.
+        guard !isStreaming else { return }
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard let llm = llmService else {
             errorMessage = "AI provider not configured. Set one up in Settings."
@@ -138,12 +175,15 @@ public final class JournalChatViewModel {
                     self.isStreaming = false
                 }
             } catch {
-                guard !(error is CancellationError) else { return }
+                // Always clear the streaming flags, even on cancellation — otherwise
+                // isStreaming stays true forever and freezes the send/save buttons.
                 await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isStreaming = false
                     if let index = self.messages.firstIndex(where: { $0.id == assistantID }) {
                         self.messages[index].isStreaming = false
+                    }
+                    self.isStreaming = false
+                    if !(error is CancellationError) {
+                        self.errorMessage = error.localizedDescription
                     }
                 }
             }

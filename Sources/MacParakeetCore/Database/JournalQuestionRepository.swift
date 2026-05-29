@@ -91,17 +91,21 @@ public final class JournalQuestionRepository: JournalQuestionRepositoryProtocol 
                 try existing.delete(db)
             }
 
-            // Insert new questions not already present (across all statuses)
+            // Insert new questions not already present (across all statuses).
+            // Also dedupe within this batch — the LLM sometimes repeats a question
+            // in one output, which would otherwise insert duplicate rows.
+            var insertedThisCall = Set<String>()
             for questionText in questions {
-                if !existingTexts.contains(questionText.lowercased()) {
-                    let question = JournalQuestion(
-                        sessionId: sessionId,
-                        analysisRunId: analysisRunId,
-                        question: questionText,
-                        status: .pending
-                    )
-                    try question.insert(db)
-                }
+                let key = questionText.lowercased()
+                if existingTexts.contains(key) || insertedThisCall.contains(key) { continue }
+                insertedThisCall.insert(key)
+                let question = JournalQuestion(
+                    sessionId: sessionId,
+                    analysisRunId: analysisRunId,
+                    question: questionText,
+                    status: .pending
+                )
+                try question.insert(db)
             }
         }
     }

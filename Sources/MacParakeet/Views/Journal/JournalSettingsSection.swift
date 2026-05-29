@@ -36,6 +36,7 @@ struct JournalSettingsSection: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Pause when idle", isOn: Binding(get: { viewModel.idleSkipEnabled }, set: { viewModel.saveIdleSkipEnabled($0) }))
+                        .parakeetSwitch()
                     Text("Stops capturing when you're away from your Mac")
                         .font(.caption).foregroundStyle(.secondary)
                     if viewModel.idleSkipEnabled {

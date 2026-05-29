@@ -2,280 +2,433 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+/// The Journal tab — a master/detail workspace. A compact month calendar plus
+/// the selected day's entries live in a left rail; the chosen entry's narrative
+/// renders in a persistent reading pane on the right.
+///
+/// Selection is in-view state (no `NavigationStack` push), so the detail is
+/// always reachable even though the tab is hosted inside the app's
+/// `NavigationSplitView` detail column.
 struct JournalLibraryView: View {
     @State var viewModel: JournalLibraryViewModel
-    @State private var selectedDate: Date = Date()
-    @State private var selectedSession: JournalSession?
 
-    private var datesWithEntries: Set<Date> {
-        Set(viewModel.sessions.map {
-            Calendar.current.startOfDay(for: $0.createdAt)
-        })
-    }
+    @State private var visibleMonth: Date = Date()
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var selectedSessionID: UUID?
+    @State private var pendingDelete: JournalSession?
+    @State private var didInitialSelection = false
+
+    private let calendar = Calendar.current
 
     var body: some View {
         VStack(spacing: 0) {
-            calendarHeader
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-
-            Divider().padding(.top, 12)
-
-            if viewModel.isLoading {
-                Spacer()
-                VStack(spacing: 12) {
-                    ProgressView().scaleEffect(0.8)
-                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-            } else if sessionsForDate.isEmpty {
-                Spacer()
-                emptyState
-                Spacer()
-            } else {
-                entriesList
+            header
+            Divider()
+            HStack(spacing: 0) {
+                rail
+                    .frame(width: 272)
+                    .background(DesignSystem.Colors.surfaceElevated.opacity(0.4))
+                Divider()
+                readingPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .navigationDestination(item: $selectedSession) { session in
-            JournalDayDetailView(session: session)
-                .navigationTitle(formattedNavTitle(session))
+        .background(DesignSystem.Colors.contentBackground)
+        .task {
+            viewModel.loadSessions()
+            applyInitialSelectionIfNeeded()
         }
-        .task { viewModel.loadSessions() }
+        .onChange(of: viewModel.sessions) { _, _ in
+            applyInitialSelectionIfNeeded()
+            reconcileSelection()
+        }
+        .alert("Delete this journal entry?", isPresented: deleteAlertBinding) {
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let session = pendingDelete { performDelete(session) }
+                pendingDelete = nil
+            }
+        } message: {
+            Text("This day's narrative, notes, and its stored screenshots will be permanently deleted.")
+        }
     }
 
-    // MARK: - Calendar Header
+    // MARK: - Header
 
-    private var calendarHeader: some View {
-        VStack(spacing: 12) {
-            // Month + year title
+    private var header: some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Journal")
+                    .font(DesignSystem.Typography.pageTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Your AI second brain, day by day.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            if !calendar.isDateInToday(selectedDate) || !isViewingCurrentMonth {
+                Button {
+                    jumpToToday()
+                } label: {
+                    Label("Today", systemImage: "calendar")
+                }
+                .parakeetAction(.secondary)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+    }
+
+    // MARK: - Left rail
+
+    private var rail: some View {
+        VStack(spacing: 0) {
+            calendarBlock
+                .padding(DesignSystem.Spacing.md)
+            Divider()
+            entryList
+        }
+    }
+
+    private var calendarBlock: some View {
+        VStack(spacing: DesignSystem.Spacing.sm) {
             HStack {
-                Button {
-                    selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.medium))
-                }
-                .buttonStyle(.plain)
-
-                Text(formattedMonthYear)
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-
-                Button {
-                    let next = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                    if next <= Date() { selectedDate = next }
-                } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.body.weight(.medium))
-                }
-                .buttonStyle(.plain)
-                .disabled(Calendar.current.isDateInToday(selectedDate))
+                monthNavButton(systemName: "chevron.left") { shiftMonth(-1) }
+                Spacer()
+                Text(monthTitle)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Spacer()
+                monthNavButton(systemName: "chevron.right") { shiftMonth(1) }
+                    .disabled(isViewingCurrentMonth)
+                    .opacity(isViewingCurrentMonth ? 0.3 : 1)
             }
 
-            // Day-of-week strip
             HStack(spacing: 0) {
-                ForEach(dayLabels, id: \.self) { day in
-                    Text(day)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
+                ForEach(Array(orderedWeekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                    Text(symbol)
+                        .font(DesignSystem.Typography.micro.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
 
-            // Date grid (current week)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 4) {
-                ForEach(weekDates, id: \.self) { date in
-                    if Calendar.current.isDate(date, equalTo: Date.distantPast, toGranularity: .day) {
-                        Color.clear.frame(height: 32)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 4) {
+                ForEach(Array(monthGridDays.enumerated()), id: \.offset) { _, day in
+                    if let day {
+                        dayCell(day)
                     } else {
-                        dayCell(date)
+                        Color.clear.frame(height: 30)
                     }
                 }
             }
         }
     }
 
+    private func monthNavButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func dayCell(_ date: Date) -> some View {
-        let isSelected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-        let isToday = Calendar.current.isDateInToday(date)
-        let hasEntry = datesWithEntries.contains(Calendar.current.startOfDay(for: date))
+        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+        let isToday = calendar.isDateInToday(date)
+        let hasEntry = datesWithEntries.contains(calendar.startOfDay(for: date))
         let isFuture = date > Date()
 
         return Button {
-            selectedDate = date
+            selectDay(date)
         } label: {
-            Text("\(Calendar.current.component(.day, from: date))")
-                .font(.callout.weight(isSelected || isToday ? .semibold : .regular))
-                .frame(height: 32)
-                .frame(maxWidth: .infinity)
-                .background(
-                    isSelected
-                        ? .blue.opacity(0.15)
-                        : isToday ? .blue.opacity(0.05) : .clear
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? .blue.opacity(0.3) : .clear, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(alignment: .bottom) {
-                    if hasEntry && !isSelected {
-                        Circle()
-                            .fill(.blue.opacity(0.5))
-                            .frame(width: 4, height: 4)
-                            .padding(.bottom, 2)
-                    }
-                }
-                    .foregroundColor(isSelected ? .blue : .primary)
-                    .opacity(isFuture ? 0.4 : 1.0)
+            VStack(spacing: 2) {
+                Text("\(calendar.component(.day, from: date))")
+                    .font(DesignSystem.Typography.bodySmall.weight(isSelected || isToday ? .semibold : .regular))
+                    .foregroundStyle(dayTextColor(isSelected: isSelected, isToday: isToday, isFuture: isFuture))
+                Circle()
+                    .fill(hasEntry ? (isSelected ? DesignSystem.Colors.onAccent : DesignSystem.Colors.accent) : .clear)
+                    .frame(width: 4, height: 4)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(isSelected ? DesignSystem.Colors.accent : .clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(isToday && !isSelected ? DesignSystem.Colors.accent.opacity(0.55) : .clear, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isFuture)
     }
 
-    private var dayLabels: [String] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        return formatter.veryShortWeekdaySymbols
+    private func dayTextColor(isSelected: Bool, isToday: Bool, isFuture: Bool) -> Color {
+        if isSelected { return DesignSystem.Colors.onAccent }
+        if isFuture { return DesignSystem.Colors.textTertiary.opacity(0.6) }
+        if isToday { return DesignSystem.Colors.accent }
+        return DesignSystem.Colors.textPrimary
     }
 
-    private var weekDates: [Date] {
-        let calendar = Calendar.current
-        let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDate)) ?? selectedDate
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
-    }
+    // MARK: - Entry list (selected day)
 
-    private var formattedMonthYear: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: selectedDate)
-    }
+    private var entryList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(railListTitle)
+                .font(DesignSystem.Typography.micro.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .textCase(.uppercase)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.top, DesignSystem.Spacing.md)
+                .padding(.bottom, DesignSystem.Spacing.sm)
 
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary.opacity(0.5))
-
-            Text("No journal for this day")
-                .font(.title3.weight(.medium))
-
-            if Calendar.current.isDateInToday(selectedDate) {
-                Text("Your journal will appear here after you stop\nand save today's session.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            if sessionsForSelectedDay.isEmpty {
+                Text(calendar.isDateInToday(selectedDate) ? "No entry saved yet today." : "No entry for this day.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                Spacer()
             } else {
-                Text("Start a Day Journal from the Transcribe tab.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(40)
-    }
-
-    // MARK: - Entries List
-
-    private var entriesList: some View {
-        List {
-            ForEach(sessionsForDate) { session in
-                Button { selectedSession = session } label: {
-                    entryRow(session)
+                ScrollView {
+                    VStack(spacing: DesignSystem.Spacing.xs) {
+                        ForEach(sessionsForSelectedDay) { session in
+                            entryRow(session)
+                        }
+                    }
+                    .padding(.horizontal, DesignSystem.Spacing.sm)
+                    .padding(.bottom, DesignSystem.Spacing.md)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .listStyle(.plain)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func entryRow(_ session: JournalSession) -> some View {
-        HStack(spacing: 14) {
-            // Time column
-            VStack(spacing: 2) {
-                Text(formattedTime(session.createdAt))
-                    .font(.callout.weight(.medium))
-                if let endedAt = session.endedAt {
-                    Text(formatDuration(from: session.createdAt, to: endedAt))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 48, alignment: .leading)
+        let isSelected = session.id == selectedSessionID
+        return Button {
+            selectedSessionID = session.id
+        } label: {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Text(timeFormatter.string(from: session.createdAt))
+                    .font(DesignSystem.Typography.duration.weight(.medium))
+                    .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                    .frame(width: 40, alignment: .leading)
 
-            // Timeline dot
-            VStack {
-                Circle().fill(.blue).frame(width: 8, height: 8)
-                Rectangle().fill(.blue.opacity(0.15)).frame(width: 1)
-            }
-
-            // Content
-            VStack(alignment: .leading, spacing: 4) {
-                Text(session.title ?? "Day Journal")
-                    .font(.body.weight(.medium))
-                    .lineLimit(1)
-
-                if let snapshot = session.finalSnapshot {
-                    Text(cleanPreview(snapshot))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                HStack(spacing: 8) {
-                    Label("\(session.screenshotCount)", systemImage: "camera.fill")
-                    if let meetings = extractMeetingCount(from: session) {
-                        Text("•")
-                        Label("\(meetings)", systemImage: "mic.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(session.title ?? "Day Journal")
+                        .font(DesignSystem.Typography.bodySmall.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .lineLimit(1)
+                    if let preview = previewText(session) {
+                        Text(preview)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .lineLimit(2)
                     }
+                    Label("\(session.screenshotCount)", systemImage: "camera.fill")
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(.top, 1)
                 }
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
+                Spacer(minLength: 0)
             }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            .padding(DesignSystem.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .fill(isSelected ? DesignSystem.Colors.accent.opacity(0.12) : .clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .stroke(isSelected ? DesignSystem.Colors.accent.opacity(0.35) : .clear, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 10)
+        .buttonStyle(.plain)
     }
 
-    private var sessionsForDate: [JournalSession] {
-        let cal = Calendar.current
-        let start = cal.startOfDay(for: selectedDate)
-        let end = cal.date(byAdding: .day, value: 1, to: start) ?? selectedDate
-        return viewModel.sessions.filter { $0.createdAt >= start && $0.createdAt < end }
+    // MARK: - Reading pane
+
+    @ViewBuilder
+    private var readingPane: some View {
+        if viewModel.isLoading && viewModel.sessions.isEmpty {
+            loadingState
+        } else if let session = selectedSession {
+            JournalDayDetailView(session: session) {
+                pendingDelete = session
+            }
+            .id(session.id)
+        } else {
+            dayEmptyState
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            ProgressView().scaleEffect(0.9)
+            Text("Loading your journal…")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var dayEmptyState: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "book.closed")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(DesignSystem.Colors.accent.opacity(0.5))
+            Text(viewModel.sessions.isEmpty ? "No journal entries yet" : "Nothing for \(mediumDateFormatter.string(from: selectedDate))")
+                .font(DesignSystem.Typography.sectionTitle)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+            Text(emptyStateDetail)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(DesignSystem.Spacing.xl)
+    }
+
+    private var emptyStateDetail: String {
+        if viewModel.sessions.isEmpty {
+            return "Start a Day Journal from the Transcribe tab. After you stop and save a session, it appears here."
+        }
+        if calendar.isDateInToday(selectedDate) {
+            return "Today's entry shows up here once you stop and save the session you're recording."
+        }
+        return "Pick another day from the calendar to read its entry."
+    }
+
+    // MARK: - Selection helpers
+
+    private func selectDay(_ date: Date) {
+        selectedDate = calendar.startOfDay(for: date)
+        selectedSessionID = sessionsForSelectedDay.first?.id
+    }
+
+    private func jumpToToday() {
+        visibleMonth = Date()
+        selectDay(Date())
+    }
+
+    private func shiftMonth(_ delta: Int) {
+        guard let next = calendar.date(byAdding: .month, value: delta, to: visibleMonth) else { return }
+        // Never navigate the calendar past the current month.
+        if delta > 0, calendar.compare(next, to: Date(), toGranularity: .month) == .orderedDescending { return }
+        visibleMonth = next
+    }
+
+    private func applyInitialSelectionIfNeeded() {
+        guard !didInitialSelection, !viewModel.sessions.isEmpty else { return }
+        didInitialSelection = true
+        if let latest = viewModel.sessions.max(by: { $0.createdAt < $1.createdAt }) {
+            visibleMonth = latest.createdAt
+            selectedDate = calendar.startOfDay(for: latest.createdAt)
+            selectedSessionID = sessionsForSelectedDay.first?.id
+        }
+    }
+
+    private func reconcileSelection() {
+        let dayIDs = Set(sessionsForSelectedDay.map(\.id))
+        if let id = selectedSessionID, dayIDs.contains(id) { return }
+        selectedSessionID = sessionsForSelectedDay.first?.id
+    }
+
+    private func performDelete(_ session: JournalSession) {
+        let wasSelected = session.id == selectedSessionID
+        viewModel.deleteSession(id: session.id)
+        if wasSelected {
+            selectedSessionID = sessionsForSelectedDay.first?.id
+        }
+    }
+
+    // MARK: - Derived data
+
+    private var datesWithEntries: Set<Date> {
+        Set(viewModel.sessions.map { calendar.startOfDay(for: $0.createdAt) })
+    }
+
+    private var sessionsForSelectedDay: [JournalSession] {
+        viewModel.sessions
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: selectedDate) }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
-    // MARK: - Helpers
-
-    private func formattedTime(_ date: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: date)
+    private var selectedSession: JournalSession? {
+        guard let id = selectedSessionID else { return nil }
+        return viewModel.sessions.first { $0.id == id }
     }
 
-    private func formattedNavTitle(_ session: JournalSession) -> String {
-        let f = DateFormatter(); f.dateFormat = "EEEE d MMMM"; return f.string(from: session.createdAt)
+    private var monthGridDays: [Date?] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: visibleMonth) else { return [] }
+        let firstOfMonth = monthInterval.start
+        let firstWeekday = calendar.component(.weekday, from: firstOfMonth)
+        let leadingBlanks = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let daysInMonth = calendar.range(of: .day, in: .month, for: visibleMonth)?.count ?? 30
+
+        var cells: [Date?] = Array(repeating: nil, count: leadingBlanks)
+        for offset in 0..<daysInMonth {
+            cells.append(calendar.date(byAdding: .day, value: offset, to: firstOfMonth))
+        }
+        while cells.count % 7 != 0 { cells.append(nil) }
+        return cells
     }
 
-    private func cleanPreview(_ text: String) -> String {
-        text.replacingOccurrences(of: "# ", with: "")
-           .replacingOccurrences(of: "**", with: "")
-           .replacingOccurrences(of: "*", with: "")
-           .trimmingCharacters(in: .whitespacesAndNewlines)
+    private var orderedWeekdaySymbols: [String] {
+        let symbols = calendar.veryShortWeekdaySymbols
+        let first = calendar.firstWeekday - 1
+        return Array(symbols[first...] + symbols[..<first])
     }
 
-    private func formatDuration(from start: Date, to end: Date) -> String {
-        let s = Int(end.timeIntervalSince(start))
-        let h = s / 3600; let m = (s % 3600) / 60
-        return h > 0 ? "\(h)h \(m)m" : "\(m)m"
+    private var isViewingCurrentMonth: Bool {
+        calendar.isDate(visibleMonth, equalTo: Date(), toGranularity: .month)
     }
 
-    private func extractMeetingCount(from session: JournalSession) -> Int? {
-        0 // placeholder — could be derived from analysis_runs
+    private var railListTitle: String {
+        if calendar.isDateInToday(selectedDate) { return "Today" }
+        return mediumDateFormatter.string(from: selectedDate)
+    }
+
+    private var deleteAlertBinding: Binding<Bool> {
+        Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } })
+    }
+
+    private func previewText(_ session: JournalSession) -> String? {
+        let raw = session.finalSnapshot ?? session.runningSummary
+        guard let raw, !raw.isEmpty else { return nil }
+        let cleaned = raw
+            .replacingOccurrences(of: "#", with: "")
+            .replacingOccurrences(of: "*", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    // MARK: - Formatters
+
+    private var monthTitle: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: visibleMonth)
+    }
+
+    private var timeFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }
+
+    private var mediumDateFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "EEE d MMM"
+        return f
     }
 }

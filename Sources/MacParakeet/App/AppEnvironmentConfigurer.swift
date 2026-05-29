@@ -386,13 +386,29 @@ final class AppEnvironmentConfigurer {
                 captureIntervalSecs: journalSettingsVM.captureInterval.rawValue,
                 analysisIntervalMins: journalSettingsVM.analysisInterval.rawValue,
                 idleSkipEnabled: journalSettingsVM.idleSkipEnabled,
-                idleThresholdSecs: journalSettingsVM.idleThreshold.rawValue
+                idleThresholdSecs: journalSettingsVM.idleThreshold.rawValue,
+                retentionDays: journalSettingsVM.retention.rawValue,
+                permissionService: PermissionService(),
+                settingsViewModel: journalSettingsVM
             )
-            journalChatViewModel.configure(llmService: hasLLMConfig ? env.llmService : nil)
-            journalLibraryViewModel.configure(sessionRepo: env.journalSessionRepo)
+            journalChatViewModel.configure(
+                llmService: hasLLMConfig ? env.llmService : nil,
+                questionTracker: JournalQuestionTracker(repository: env.journalQuestionRepo)
+            )
+            journalLibraryViewModel.configure(
+                sessionRepo: env.journalSessionRepo,
+                storageManager: JournalStorageManager()
+            )
 
             // Auto-refresh journal library when a session is finalized
             journalControlViewModel.onLibraryRefreshNeeded = { [weak journalLibraryViewModel] in
+                journalLibraryViewModel?.loadSessions()
+            }
+
+            // Recover any session left mid-flight by a prior quit/crash, then
+            // refresh the library so the salvaged day shows up.
+            Task { @MainActor [weak journalLibraryViewModel] in
+                await journalService.reconcileInterruptedSessions()
                 journalLibraryViewModel?.loadSessions()
             }
         }
@@ -413,5 +429,6 @@ final class AppEnvironmentConfigurer {
         promptResultsViewModel.updateLLMService(service)
         transformsViewModel.setHasLLMProvider(hasConfig)
         liveMeetingCoordinator?.updateLLMService(service)
+        journalChatViewModel.updateLLMService(service)
     }
 }

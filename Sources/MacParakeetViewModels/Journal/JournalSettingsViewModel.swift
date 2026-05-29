@@ -111,9 +111,15 @@ public final class JournalSettingsViewModel {
             idleThreshold = threshold
         }
 
-        let rawRetention = defaults.integer(forKey: JournalDefaults.retentionDaysKey)
-        if let retention = JournalRetention(rawValue: rawRetention) {
-            self.retention = retention
+        // Only override the default (.days30) when the user has actually saved a
+        // value. `JournalRetention(rawValue: 0)` is valid (.forever), so reading a
+        // missing key as integer 0 would silently flip the default to "Forever"
+        // and disable all retention pruning on a fresh install.
+        if defaults.object(forKey: JournalDefaults.retentionDaysKey) != nil {
+            let rawRetention = defaults.integer(forKey: JournalDefaults.retentionDaysKey)
+            if let retention = JournalRetention(rawValue: rawRetention) {
+                self.retention = retention
+            }
         }
     }
 

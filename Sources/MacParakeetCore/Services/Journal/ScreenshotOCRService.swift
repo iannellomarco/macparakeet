@@ -36,22 +36,32 @@ public final class ScreenshotOCRService: ScreenshotOCRServiceProtocol {
                     return
                 }
 
+                // Resume exactly once. The request's completion handler runs
+                // synchronously inside `handler.perform`; if perform also throws
+                // we must not resume the continuation a second time (a crash).
+                var didResume = false
+
                 let request = VNRecognizeTextRequest { request, error in
+                    guard !didResume else { return }
+                    didResume = true
                     if let error {
                         continuation.resume(throwing: error)
                         return
                     }
-                    let result = self.processResults(request.results)
-                    continuation.resume(returning: result)
+                    continuation.resume(returning: self.processResults(request.results))
                 }
                 request.recognitionLevel = .accurate
                 request.usesLanguageCorrection = true
-                request.recognitionLanguages = ["en"]
+                // Detect the script automatically rather than assuming English —
+                // the app explicitly serves non-English (KO/JA/ZH) users.
+                request.automaticallyDetectsLanguage = true
 
                 let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                 do {
                     try handler.perform([request])
                 } catch {
+                    guard !didResume else { return }
+                    didResume = true
                     continuation.resume(throwing: error)
                 }
             }

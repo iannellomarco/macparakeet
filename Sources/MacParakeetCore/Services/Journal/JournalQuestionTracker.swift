@@ -19,25 +19,31 @@ public final class JournalQuestionTracker: JournalQuestionTrackerProtocol {
         self.repository = repository
     }
 
-    /// Parse the "## Pending Questions" section from an AI analysis output.
-    /// Matches bullet-point lines (starting with `-` or `*`) after the
-    /// "## Pending Questions" header until the next `## ` header or end of text.
+    /// Parse the pending-questions section from an AI analysis output.
+    /// Tolerant of heading-level/casing/spacing drift (e.g. "## Pending Questions",
+    /// "###  pending questions", "## Questions"): matches bullet lines (-, *, +)
+    /// after the questions header until the next heading or end of text.
     public func extractQuestions(from analysisText: String) -> [String] {
-        guard let questionsHeader = analysisText.range(of: "## Pending Questions") else {
-            return []
-        }
-
-        let afterHeader = analysisText[questionsHeader.upperBound...]
         var questions: [String] = []
+        var inSection = false
 
-        for line in afterHeader.split(separator: "\n", omittingEmptySubsequences: false) {
+        for line in analysisText.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            // Stop at next section header
-            if trimmed.hasPrefix("## ") {
-                break
+
+            if trimmed.hasPrefix("#") {
+                if inSection { break } // next section ends the questions block
+                let headingText = trimmed
+                    .drop(while: { $0 == "#" })
+                    .trimmingCharacters(in: .whitespaces)
+                    .lowercased()
+                if headingText.contains("pending question") || headingText == "questions" {
+                    inSection = true
+                }
+                continue
             }
-            // Match bullet points
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+
+            guard inSection else { continue }
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
                 let question = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
                 if !question.isEmpty {
                     questions.append(question)

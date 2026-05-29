@@ -25,6 +25,16 @@ public protocol JournalServiceProtocol: Sendable {
     func cancelSession() async throws
     func startReview() async throws -> JournalSession
     func finalizeSession(userNotes: String) async throws -> JournalSession
+
+    /// Live count of screenshots captured in the active session so far.
+    var currentScreenshotCount: Int { get async }
+
+    /// Delete stored screenshot files older than `retentionDays` across all
+    /// sessions. No-op when `retentionDays <= 0` (the "Forever" setting).
+    func enforceRetention(retentionDays: Int) async
+
+    /// Recover sessions interrupted by a previous app quit/crash. Call at launch.
+    func reconcileInterruptedSessions() async
 }
 
 // MARK: - Implementation
@@ -39,8 +49,10 @@ public actor JournalService: JournalServiceProtocol {
     private let screenshotRepo: JournalScreenshotRepositoryProtocol
     private let llmService: LLMServiceProtocol?
     private let transcriptionRepo: TranscriptionRepositoryProtocol?
+    private let questionRepo: JournalQuestionRepositoryProtocol?
 
     public private(set) var currentState: JournalState = .idle
+    public private(set) var currentScreenshotCount: Int = 0
 
     private var captureTask: Task<Void, Never>?
     private var analysisTask: Task<Void, Never>?
@@ -59,7 +71,8 @@ public actor JournalService: JournalServiceProtocol {
         sessionRepo: JournalSessionRepositoryProtocol,
         screenshotRepo: JournalScreenshotRepositoryProtocol,
         llmService: LLMServiceProtocol? = nil,
-        transcriptionRepo: TranscriptionRepositoryProtocol? = nil
+        transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
+        questionRepo: JournalQuestionRepositoryProtocol? = nil
     ) {
         self.captureService = captureService
         self.ocrService = ocrService
@@ -70,6 +83,7 @@ public actor JournalService: JournalServiceProtocol {
         self.screenshotRepo = screenshotRepo
         self.llmService = llmService
         self.transcriptionRepo = transcriptionRepo
+        self.questionRepo = questionRepo
     }
 
     // MARK: - Start
@@ -92,6 +106,7 @@ public actor JournalService: JournalServiceProtocol {
         )
         try sessionRepo.save(session)
         currentState = .recording(sessionId: session.id)
+        currentScreenshotCount = 0
 
         // Start capture loop
         let sessionId = session.id
@@ -123,11 +138,16 @@ public actor JournalService: JournalServiceProtocol {
             throw JournalError.noSessionActive
         }
 
-        // Cancel loops
+        // Cancel loops. Await the analysis loop's completion BEFORE running the
+        // final catch-up batch — cancel() is cooperative, so a still-in-flight
+        // analyzeBatch would otherwise run concurrently with the one below
+        // (duplicate runs, double LLM cost, racing summary writes).
         captureTask?.cancel()
         analysisTask?.cancel()
+        let pendingAnalysis = analysisTask
         captureTask = nil
         analysisTask = nil
+        await pendingAnalysis?.value
 
         // Run a final catch-up analysis
         do {
@@ -157,7 +177,14 @@ public actor JournalService: JournalServiceProtocol {
     // MARK: - Cancel (discard all data)
 
     public func cancelSession() async throws {
-        guard case .recording(let sessionId) = currentState else {
+        // Discard works from both recording and reviewing — the chat panel's
+        // discard/close happens after the session has already transitioned to
+        // .reviewing, so guarding on .recording alone would orphan the session.
+        let sessionId: UUID
+        switch currentState {
+        case .recording(let id), .reviewing(let id):
+            sessionId = id
+        case .idle:
             throw JournalError.noSessionActive
         }
 
@@ -166,24 +193,69 @@ public actor JournalService: JournalServiceProtocol {
         captureTask = nil
         analysisTask = nil
 
-        // Delete all screenshots from disk
-        try storageManager.deleteSessionFolder(sessionId: sessionId)
-
-        // DB cascade-deletes screenshots, analysis runs, and questions
-        try sessionRepo.updateStatus(
-            id: sessionId,
-            status: .cancelled,
-            endedAt: Date()
-        )
+        // Delete the session row — the FK cascade discards its screenshots,
+        // analysis runs, and questions. (Marking it .cancelled would leave all
+        // those child rows behind forever.) The DB is the source of truth, so
+        // do it first, then best-effort remove the on-disk folder — a locked
+        // file must not leave the DB half-cleaned.
+        _ = try sessionRepo.delete(id: sessionId)
+        try? storageManager.deleteSessionFolder(sessionId: sessionId)
 
         currentState = .idle
         Self.logger.info("Journal session cancelled and discarded: \(sessionId)")
     }
 
+    // MARK: - Crash / quit recovery
+
+    /// Salvage sessions left in `.recording`/`.reviewing` by a previous process
+    /// (app quit or crash mid-session). Their capture/analysis loops are gone
+    /// and can't resume, so mark them `.completed` to preserve the partial day
+    /// rather than orphaning rows the library never shows. Call once at launch.
+    public func reconcileInterruptedSessions() async {
+        guard case .idle = currentState else { return }
+        do {
+            let sessions = try sessionRepo.fetchAll(limit: nil)
+            for session in sessions where session.status == .recording || session.status == .reviewing {
+                try? sessionRepo.updateStatus(
+                    id: session.id,
+                    status: .completed,
+                    endedAt: session.endedAt ?? session.updatedAt
+                )
+                Self.logger.info("Recovered interrupted journal session: \(session.id)")
+            }
+        } catch {
+            Self.logger.warning("Interrupted-session reconcile failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Retention
+
+    public func enforceRetention(retentionDays: Int) async {
+        guard retentionDays > 0 else { return } // "Forever" — keep everything
+        do {
+            let sessions = try sessionRepo.fetchAll(limit: nil)
+            var totalDeleted = 0
+            for session in sessions {
+                // Don't prune the screenshots of the session that is still live.
+                if case .recording(let activeID) = currentState, activeID == session.id { continue }
+                let deleted = (try? storageManager.enforceRetention(
+                    retentionDays: retentionDays,
+                    sessionId: session.id
+                )) ?? 0
+                totalDeleted += deleted
+            }
+            if totalDeleted > 0 {
+                Self.logger.info("Retention swept \(totalDeleted) screenshot file(s) older than \(retentionDays) day(s)")
+            }
+        } catch {
+            Self.logger.warning("Retention sweep failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Review
 
     public func startReview() async throws -> JournalSession {
-        guard case .recording(let sessionId) = currentState else {
+        guard case .recording = currentState else {
             throw JournalError.noSessionActive
         }
 
@@ -299,6 +371,7 @@ public actor JournalService: JournalServiceProtocol {
                         id: sessionId,
                         storageBytes: capture.imageData.count
                     )
+                    currentScreenshotCount += 1
                 }
 
                 if !captures.isEmpty {
@@ -371,6 +444,9 @@ public actor JournalService: JournalServiceProtocol {
         // Fetch same-day meeting transcripts
         let meetingContext = fetchMeetingContext(for: session)
 
+        // Fetch the user's answers to the AI's clarification questions
+        let clarifications = fetchAnsweredClarifications(for: session)
+
         // If we have a running summary, use the LLM to turn it into a proper narrative
         if let runningSummary = session.runningSummary, !runningSummary.isEmpty,
            let llm = llmService {
@@ -386,6 +462,14 @@ public actor JournalService: JournalServiceProtocol {
 
                 Meeting transcripts from today (for cross-referencing):
                 \(meetingContext)
+                """
+            }
+
+            if !clarifications.isEmpty {
+                prompt += """
+
+                The user answered some clarification questions (treat these as authoritative):
+                \(clarifications)
                 """
             }
 
@@ -434,6 +518,16 @@ public actor JournalService: JournalServiceProtocol {
     }
 
     // MARK: - Meeting context
+
+    private func fetchAnsweredClarifications(for session: JournalSession) -> String {
+        guard let repo = questionRepo else { return "" }
+        guard let questions = try? repo.fetchAll(sessionId: session.id) else { return "" }
+        let answered = questions.compactMap { q -> String? in
+            guard q.status == .answered, let answer = q.userAnswer, !answer.isEmpty else { return nil }
+            return "Q: \(q.question)\nA: \(answer)"
+        }
+        return answered.joined(separator: "\n\n")
+    }
 
     private func fetchMeetingContext(for session: JournalSession) -> String {
         guard let repo = transcriptionRepo else { return "" }

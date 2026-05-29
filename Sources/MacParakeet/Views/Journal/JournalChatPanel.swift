@@ -2,51 +2,49 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+/// End-of-day review chat. Presents the AI's day observations, lets the user
+/// answer/dismiss clarification questions, add notes, and finalize the journal.
 struct JournalChatPanel: View {
     @State var viewModel: JournalChatViewModel
     var onFinalize: (String) -> Void
     var onDiscard: () -> Void
 
     @State private var userNotes: String = ""
+    @State private var showNotes: Bool = false
+    @State private var answerDrafts: [UUID: String] = [:]
     @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             headerView
-
             Divider()
-
-            // Messages
             messagesView
-
+            questionsSection
             Divider()
-
-            // Input area
             inputView
-
-            // Bottom bar
             bottomBar
         }
         .frame(minWidth: 520, idealWidth: 620, maxWidth: 720)
-        .frame(minHeight: 520, idealHeight: 620)
+        .frame(minHeight: 540, idealHeight: 640)
+        .background(DesignSystem.Colors.contentBackground)
         .onAppear { inputFocused = true }
     }
 
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "camera.viewfinder")
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "book.pages")
                 .font(.title3)
-                .foregroundStyle(.blue)
+                .foregroundStyle(DesignSystem.Colors.accent)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Day Review")
-                    .font(.headline)
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Text("Chat with the AI about your workday")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
 
             Spacer()
@@ -54,13 +52,14 @@ struct JournalChatPanel: View {
             Button { onDiscard() } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
+            .help("Discard this review")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
     }
 
     // MARK: - Messages
@@ -68,7 +67,7 @@ struct JournalChatPanel: View {
     private var messagesView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     ForEach(viewModel.messages) { message in
                         Group {
                             if message.role == .user {
@@ -80,7 +79,7 @@ struct JournalChatPanel: View {
                         .id(message.id)
                     }
                 }
-                .padding(20)
+                .padding(DesignSystem.Spacing.lg)
             }
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let last = viewModel.messages.last {
@@ -90,103 +89,153 @@ struct JournalChatPanel: View {
         }
     }
 
-    // MARK: - AI Message Card
-
     private func aiMessageCard(_ message: JournalChatMessage) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            // Avatar
-            Image(systemName: "brain.head.profile")
-                .font(.title3)
-                .foregroundStyle(.blue)
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "sparkles")
+                .font(.body)
+                .foregroundStyle(DesignSystem.Colors.accent)
                 .frame(width: 28, height: 28)
-                .padding(6)
-                .background(.blue.opacity(0.08), in: Circle())
+                .background(DesignSystem.Colors.accentLight, in: Circle())
 
-            VStack(alignment: .leading, spacing: 8) {
-                // Render content as Markdown if it looks structured
-                let content = message.content
-                if content.contains("##") || content.contains("**") {
-                    let attr = (try? AttributedString(
-                        markdown: content,
-                        options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-                    )) ?? AttributedString(content)
-                    Text(attr)
-                    .font(.body)
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                Text(renderedMarkdown(message.content))
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .textSelection(.enabled)
-                } else {
-                    Text(content)
-                        .font(.body)
-                        .textSelection(.enabled)
-                }
 
                 if message.isStreaming {
-                    HStack(spacing: 3) {
-                        Circle().frame(width: 4, height: 4)
-                        Circle().frame(width: 4, height: 4)
-                        Circle().frame(width: 4, height: 4)
-                    }
-                    .foregroundStyle(.blue)
+                    AIStreamingIndicator()
                 }
             }
-            .padding(14)
+            .padding(DesignSystem.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.blue.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
+            .background(DesignSystem.Colors.surface, in: RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                    .stroke(DesignSystem.Colors.border, lineWidth: 1)
+            )
 
-            Spacer(minLength: 40)
+            Spacer(minLength: DesignSystem.Spacing.xl)
         }
     }
-
-    // MARK: - User Bubble
 
     private func userBubble(_ message: JournalChatMessage) -> some View {
         HStack {
             Spacer(minLength: 60)
-
             Text(message.content)
-                .font(.body)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+                .background(DesignSystem.Colors.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
         }
     }
 
-    // MARK: - Input view
+    private func renderedMarkdown(_ content: String) -> AttributedString {
+        (try? AttributedString(
+            markdown: content,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(content)
+    }
+
+    // MARK: - Questions
+
+    @ViewBuilder
+    private var questionsSection: some View {
+        if !viewModel.pendingQuestions.isEmpty {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                Label("A few questions to sharpen your journal", systemImage: "questionmark.bubble")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                ScrollView {
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        ForEach(viewModel.pendingQuestions) { question in
+                            questionCard(question)
+                        }
+                    }
+                }
+                .frame(maxHeight: 168)
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.vertical, DesignSystem.Spacing.md)
+            .background(DesignSystem.Colors.accentLight.opacity(0.6))
+        }
+    }
+
+    private func questionCard(_ question: JournalQuestion) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text(question.question)
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                TextField("Your answer…", text: draftBinding(question.id))
+                    .textFieldStyle(.roundedBorder)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .onSubmit { submitAnswer(question) }
+
+                Button("Answer") { submitAnswer(question) }
+                    .parakeetAction(.primary)
+                    .controlSize(.small)
+                    .disabled((answerDrafts[question.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Button("Skip") {
+                    Task { await viewModel.dismissQuestion(question) }
+                }
+                .parakeetAction(.subtle)
+                .controlSize(.small)
+            }
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.surface, in: RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+    }
+
+    private func draftBinding(_ id: UUID) -> Binding<String> {
+        Binding(
+            get: { answerDrafts[id] ?? "" },
+            set: { answerDrafts[id] = $0 }
+        )
+    }
+
+    private func submitAnswer(_ question: JournalQuestion) {
+        let draft = answerDrafts[question.id] ?? ""
+        guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        Task {
+            await viewModel.answerQuestion(question, with: draft)
+            answerDrafts[question.id] = nil
+        }
+    }
+
+    // MARK: - Input
 
     private var inputView: some View {
         VStack(spacing: 0) {
-            // Notes field (collapsible)
-            if !userNotes.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+            if showNotes {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Notes for your journal")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
                     TextEditor(text: $userNotes)
-                        .font(.callout)
-                        .frame(height: 50)
+                        .font(DesignSystem.Typography.body)
+                        .frame(height: 56)
                         .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                        .padding(DesignSystem.Spacing.sm)
+                        .background(DesignSystem.Colors.surfaceElevated, in: RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.bottom, DesignSystem.Spacing.sm)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            // Chat input bar
-            HStack(spacing: 8) {
-                // Add notes toggle
+            HStack(spacing: DesignSystem.Spacing.sm) {
                 Button {
-                    withAnimation {
-                        if userNotes.isEmpty {
-                            userNotes = " "
-                            userNotes = ""
-                        } else {
-                            userNotes = ""
-                        }
-                    }
+                    withAnimation(DesignSystem.Animation.contentSwap) { showNotes.toggle() }
                 } label: {
-                    Image(systemName: userNotes.isEmpty ? "note.text" : "note.text")
+                    Image(systemName: showNotes ? "note.text.badge.plus" : "note.text")
                         .font(.body)
+                        .foregroundStyle(showNotes ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
                 }
                 .buttonStyle(.plain)
                 .help("Add notes to your journal entry")
@@ -201,14 +250,15 @@ struct JournalChatPanel: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(canSend ? Color.blue : Color.secondary.opacity(0.4))
+                        .foregroundStyle(canSend ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
                 }
+                .buttonStyle(.plain)
                 .disabled(!canSend)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.vertical, DesignSystem.Spacing.sm)
         }
-        .background(.regularMaterial)
+        .background(DesignSystem.Colors.surface)
     }
 
     private var canSend: Bool {
@@ -219,13 +269,13 @@ struct JournalChatPanel: View {
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignSystem.Spacing.md) {
             Button(role: .destructive) {
                 onDiscard()
             } label: {
                 Label("Discard", systemImage: "trash")
             }
-            .buttonStyle(.bordered)
+            .parakeetAction(.destructive)
             .controlSize(.large)
 
             Spacer()
@@ -236,12 +286,12 @@ struct JournalChatPanel: View {
                 Label("Save Journal", systemImage: "square.and.arrow.down.fill")
                     .frame(maxWidth: 180)
             }
-            .buttonStyle(.borderedProminent)
+            .parakeetAction(.primaryProminent)
             .controlSize(.large)
             .disabled(!viewModel.canFinalize)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .background(DesignSystem.Colors.surface)
     }
 }

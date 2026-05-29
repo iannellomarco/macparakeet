@@ -278,7 +278,8 @@ final class AppEnvironment {
                 sessionRepo: journalSessionRepo,
                 screenshotRepo: journalScreenshotRepo,
                 llmService: llmService,
-                transcriptionRepo: transcriptionRepo
+                transcriptionRepo: transcriptionRepo,
+                questionRepo: journalQuestionRepo
             )
         } else {
             journalService = nil

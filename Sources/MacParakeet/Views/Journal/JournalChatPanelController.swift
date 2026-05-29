@@ -19,9 +19,30 @@ final class JournalChatPanelController {
     private var sessionId: UUID?
     private var runningSummary: String = ""
     private var questions: [JournalQuestion] = []
+    /// Guards against finalize/discard firing more than once (e.g. the user's
+    /// Discard button followed by the window's own close notification).
+    private var didComplete = false
 
     init(viewModel: JournalChatViewModel) {
         self.viewModel = viewModel
+    }
+
+    private func completeFinalize(_ notes: String) {
+        guard !didComplete else { return }
+        didComplete = true
+        onFinalize?(notes)
+        close()
+    }
+
+    private func completeDiscard() {
+        guard !didComplete else { return }
+        didComplete = true
+        onDiscard?()
+        close()
+    }
+
+    fileprivate func handleWindowWillClose() {
+        completeDiscard()
     }
 
     var isVisible: Bool {
@@ -79,12 +100,10 @@ final class JournalChatPanelController {
         let chatPanel = JournalChatPanel(
             viewModel: viewModel,
             onFinalize: { [weak self] notes in
-                self?.onFinalize?(notes)
-                self?.close()
+                self?.completeFinalize(notes)
             },
             onDiscard: { [weak self] in
-                self?.onDiscard?()
-                self?.close()
+                self?.completeDiscard()
             }
         )
 
@@ -107,6 +126,6 @@ private final class JournalChatPanelWindowDelegate: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        controller?.onDiscard?()
+        controller?.handleWindowWillClose()
     }
 }

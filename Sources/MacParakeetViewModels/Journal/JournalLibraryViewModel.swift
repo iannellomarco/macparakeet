@@ -9,6 +9,7 @@ public final class JournalLibraryViewModel {
     public var isLoading: Bool = false
 
     private var sessionRepo: JournalSessionRepositoryProtocol?
+    private var storageManager: JournalStorageManagerProtocol?
     private let logger = Logger(
         subsystem: "com.macparakeet.viewmodels",
         category: "JournalLibrary"
@@ -16,8 +17,12 @@ public final class JournalLibraryViewModel {
 
     public init() {}
 
-    public func configure(sessionRepo: JournalSessionRepositoryProtocol?) {
+    public func configure(
+        sessionRepo: JournalSessionRepositoryProtocol?,
+        storageManager: JournalStorageManagerProtocol? = nil
+    ) {
         self.sessionRepo = sessionRepo
+        self.storageManager = storageManager
     }
 
     public func loadSessions() {
@@ -36,6 +41,13 @@ public final class JournalLibraryViewModel {
         guard let repo = sessionRepo else { return }
         do {
             _ = try repo.delete(id: id)
+            // Remove the on-disk screenshot folder too — DB cascade only clears
+            // the rows, not the JPEG files in the session folder.
+            do {
+                try storageManager?.deleteSessionFolder(sessionId: id)
+            } catch {
+                logger.error("Failed to delete journal screenshot folder: \(error.localizedDescription)")
+            }
             sessions.removeAll { $0.id == id }
         } catch {
             logger.error("Failed to delete journal session: \(error.localizedDescription)")

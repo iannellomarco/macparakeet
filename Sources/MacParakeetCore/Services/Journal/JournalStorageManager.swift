@@ -46,6 +46,10 @@ public final class JournalStorageManager: JournalStorageManagerProtocol, @unchec
     // MARK: - Retention
 
     public func enforceRetention(retentionDays: Int, sessionId: UUID) throws -> Int {
+        // 0 (or negative) means "Forever" — never auto-delete. Without this guard
+        // the cutoff would be `now`, deleting every screenshot on the spot.
+        guard retentionDays > 0 else { return 0 }
+
         let folder = sessionFolder(sessionId)
         guard fileManager.fileExists(atPath: folder) else { return 0 }
 

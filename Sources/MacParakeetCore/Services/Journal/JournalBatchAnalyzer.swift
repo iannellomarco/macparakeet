@@ -66,6 +66,7 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         if screenshots.isEmpty {
             let emptyRun = JournalAnalysisRun(
                 sessionId: sessionId,
+                runAt: startTime,
                 screenshotCount: 0,
                 ocrTextInput: "",
                 analysis: "",
@@ -100,16 +101,11 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
             latencyMs = llmResult.latencyMs
         } catch {
             Self.logger.error("LLM analysis failed: \(error.localizedDescription)")
-            // Save a failed run with empty analysis so we don't retry
-            // the same screenshots on the next batch
-            let failedRun = JournalAnalysisRun(
-                sessionId: sessionId,
-                screenshotCount: screenshots.count,
-                ocrTextInput: ocrText,
-                analysis: "",
-                wasUsed: false
-            )
-            try analysisRunRepo.save(failedRun)
+            // Do NOT persist a run here. Saving one would advance the analysis
+            // cursor (fetchLatest.runAt) past these screenshots, so a single
+            // transient provider error would drop that window from the day
+            // narrative forever. Leaving the cursor untouched means the same
+            // screenshots are retried on the next batch (and at stop time).
             throw error
         }
 
@@ -192,25 +188,32 @@ public final class JournalBatchAnalyzer: JournalBatchAnalyzerProtocol {
         }.joined(separator: "\n")
     }
 
+    /// Extract a Markdown section body by header name. Tolerant of heading level
+    /// (#, ##, ###) and casing/spacing drift so a slightly off-format LLM response
+    /// doesn't silently drop the running-summary update.
     private func extractSection(_ header: String, from text: String) -> String? {
-        guard let headerRange = text.range(of: "## \(header)") else {
-            return nil
-        }
-
-        let afterHeader = text[headerRange.upperBound...]
+        let target = header.lowercased()
         var lines: [String] = []
+        var collecting = false
 
-        for line in afterHeader.split(separator: "\n", omittingEmptySubsequences: false) {
+        for line in text.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("## ") {
-                break
+            if trimmed.hasPrefix("#") {
+                if collecting { break } // next heading ends the section
+                let headingText = trimmed
+                    .drop(while: { $0 == "#" })
+                    .trimmingCharacters(in: .whitespaces)
+                    .lowercased()
+                if headingText == target || headingText.hasPrefix(target) {
+                    collecting = true
+                }
+                continue
             }
-            lines.append(String(line))
+            if collecting { lines.append(line) }
         }
 
         let content = lines.joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-
         return content.isEmpty ? nil : content
     }
 
